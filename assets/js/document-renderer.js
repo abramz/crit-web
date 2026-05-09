@@ -77,6 +77,70 @@ commentMd.renderer.rules.file_ref = function(tokens, idx) {
   return '<span class="file-ref">' + escapeHtml(path) + '</span>'
 }
 
+// Override code_inline so backtick-wrapped comment IDs render as the same chip.
+const defaultCodeInline = commentMd.renderer.rules.code_inline || function(tokens, idx, options, env, self) {
+  return self.renderToken(tokens, idx, options)
+}
+commentMd.renderer.rules.code_inline = function(tokens, idx, options, env, self) {
+  const content = tokens[idx].content
+  if (/^(c|r|rp)_[a-f0-9]{6,}$/.test(content)) {
+    return '<span class="comment-ref comment-ref-code" data-ref-id="' + escapeHtml(content) + '">' + escapeHtml(content) + '</span>'
+  }
+  return defaultCodeInline(tokens, idx, options, env, self)
+}
+
+function linkifyCommentRefsInDom(el) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false)
+  const textNodes = []
+  let node
+  while ((node = walker.nextNode())) {
+    if (node.parentNode.closest('code, pre, .comment-ref')) continue
+    textNodes.push(node)
+  }
+  const re = /((?:c|r|rp)_[a-f0-9]{6,})/g
+  textNodes.forEach(tn => {
+    if (!re.test(tn.nodeValue)) { re.lastIndex = 0; return }
+    re.lastIndex = 0
+    const frag = document.createDocumentFragment()
+    let last = 0, m
+    while ((m = re.exec(tn.nodeValue)) !== null) {
+      if (m.index > last) frag.appendChild(document.createTextNode(tn.nodeValue.slice(last, m.index)))
+      const span = document.createElement('span')
+      span.className = 'comment-ref'
+      span.dataset.refId = m[1]
+      span.textContent = m[1]
+      frag.appendChild(span)
+      last = m.index + m[0].length
+    }
+    if (last < tn.nodeValue.length) frag.appendChild(document.createTextNode(tn.nodeValue.slice(last)))
+    tn.parentNode.replaceChild(frag, tn)
+  })
+}
+
+// Scroll/expand/flash a comment card located anywhere in the document, given just its id.
+function scrollToCommentRef(id) {
+  const card = document.querySelector(`.comment-card[data-comment-id="${CSS.escape(id)}"]`)
+  if (!card) return
+  const section = card.closest('details')
+  if (section && !section.open) section.open = true
+  if (card.classList.contains('collapsed')) {
+    card.classList.remove('collapsed')
+    commentCollapseOverrides[id] = false
+  }
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  card.classList.remove('comment-ref-flash')
+  void card.offsetWidth
+  card.classList.add('comment-ref-flash')
+  setTimeout(() => { card.classList.remove('comment-ref-flash') }, 1650)
+}
+
+document.addEventListener('click', (e) => {
+  const ref = e.target.closest && e.target.closest('.comment-ref')
+  if (!ref) return
+  e.preventDefault()
+  scrollToCommentRef(ref.dataset.refId)
+})
+
 // ===== Word-Level Diff =====
 
 // Split a line into tokens: words (alphanumeric + underscore) and individual non-word characters.
@@ -2702,6 +2766,7 @@ function createCommentElement(comment, ctx) {
     }
   }
   body.innerHTML = commentMd.render(comment.body, env)
+  linkifyCommentRefsInDom(body)
 
   card.appendChild(header)
   card.appendChild(body)
@@ -3104,6 +3169,7 @@ function renderReplyList(comment, ctx) {
     replyBody.className = 'reply-body'
     replyBody.dataset.rawBody = reply.body
     replyBody.innerHTML = commentMd.render(reply.body)
+    linkifyCommentRefsInDom(replyBody)
     replyEl.appendChild(replyBody)
 
     repliesContainer.appendChild(replyEl)
@@ -3362,6 +3428,7 @@ function createResolvedElement(comment, ctx) {
     }
   }
   body.innerHTML = commentMd.render(comment.body, env)
+  linkifyCommentRefsInDom(body)
 
   card.appendChild(header)
   card.appendChild(body)
@@ -4034,6 +4101,7 @@ function renderPanelCard(ctx, comment, filePath) {
     }
   }
   bodyEl.innerHTML = commentMd.render(comment.body, env)
+  linkifyCommentRefsInDom(bodyEl)
   card.appendChild(bodyEl)
 
   // Replies (read-only in panel)
@@ -4966,7 +5034,7 @@ export const DocumentRenderer = {
       const card = ctx.el.querySelector(`.comment-card[data-comment-id="${id}"]`)
       if (card) {
         const bodyEl = card.querySelector('.comment-body')
-        if (bodyEl) bodyEl.innerHTML = commentMd.render(body)
+        if (bodyEl) { bodyEl.innerHTML = commentMd.render(body); linkifyCommentRefsInDom(bodyEl) }
       }
       rerenderPanel(ctx)
     })
@@ -5034,6 +5102,7 @@ export const DocumentRenderer = {
         if (bodyEl) {
           bodyEl.dataset.rawBody = body
           bodyEl.innerHTML = commentMd.render(body)
+          linkifyCommentRefsInDom(bodyEl)
         }
       }
       rerenderPanel(ctx)

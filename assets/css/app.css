@@ -171,6 +171,14 @@
   --crit-editor-fg-muted:        #9aa1c8;
   --crit-editor-scrollbar-bg:    #1a1b26;
   --crit-editor-scrollbar-thumb: #3b4261;
+
+  /* Comment reference chip */
+  /* dark theme */
+  --crit-comment-ref-color:       #85aaf8;
+  --crit-comment-ref-color-hover: #94bcfb;
+  --crit-comment-ref-underline:   rgba(133, 170, 248, 0.35);
+  --crit-comment-ref-flash-bg:    rgba(187, 128, 9, 0.35);
+  --crit-comment-ref-flash-ring:  rgba(187, 128, 9, 0.85);
 }
 
 /* Content width toggle (matches crit local) */
@@ -296,6 +304,12 @@
   --crit-editor-fg-muted:        #9aa1c8;
   --crit-editor-scrollbar-bg:    #1a1b26;
   --crit-editor-scrollbar-thumb: #3b4261;
+  /* Comment reference chip (dark) */
+  --crit-comment-ref-color:       #85aaf8;
+  --crit-comment-ref-color-hover: #94bcfb;
+  --crit-comment-ref-underline:   rgba(133, 170, 248, 0.35);
+  --crit-comment-ref-flash-bg:    rgba(187, 128, 9, 0.35);
+  --crit-comment-ref-flash-ring:  rgba(187, 128, 9, 0.85);
 }
 
 [data-theme="light"] {
@@ -416,6 +430,12 @@
   --crit-editor-fg-muted:        #59636e;
   --crit-editor-scrollbar-bg:    #ffffff;
   --crit-editor-scrollbar-thumb: #d1d9e0;
+  /* Comment reference chip (light) */
+  --crit-comment-ref-color:       #0550ae;
+  --crit-comment-ref-color-hover: #033d8b;
+  --crit-comment-ref-underline:   rgba(5, 80, 174, 0.50);
+  --crit-comment-ref-flash-bg:    rgba(255, 212, 59, 0.55);
+  --crit-comment-ref-flash-ring:  rgba(154, 103, 0, 0.70);
 }
 
 /* System preference: light — overrides dark :root defaults when OS is light */
@@ -538,6 +558,12 @@
     --crit-editor-fg-muted:        #59636e;
     --crit-editor-scrollbar-bg:    #ffffff;
     --crit-editor-scrollbar-thumb: #d1d9e0;
+    /* Comment reference chip (light) */
+    --crit-comment-ref-color:       #0550ae;
+    --crit-comment-ref-color-hover: #033d8b;
+    --crit-comment-ref-underline:   rgba(5, 80, 174, 0.50);
+    --crit-comment-ref-flash-bg:    rgba(255, 212, 59, 0.55);
+    --crit-comment-ref-flash-ring:  rgba(154, 103, 0, 0.70);
   }
 }
 
@@ -2358,6 +2384,42 @@ body.dragging .line-block.drag-endpoint .line-gutter .line-add { display: flex; 
   padding: 1px 5px;
   border-radius: 3px;
   white-space: nowrap;
+}
+
+/* Comment Reference Chip */
+.comment-ref {
+  font-family: var(--crit-font-mono);
+  font-size: 0.92em;
+  color: var(--crit-comment-ref-color);
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 1px;
+  margin: 0 -1px;
+  transition:
+    color var(--crit-dur-fast) var(--crit-ease),
+    background-color 1.6s var(--crit-ease),
+    box-shadow 1.6s var(--crit-ease);
+}
+.comment-ref:hover {
+  color: var(--crit-comment-ref-color-hover);
+  text-decoration: underline;
+  text-decoration-color: var(--crit-comment-ref-underline);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.comment-ref:focus-visible {
+  outline: 2px solid var(--crit-comment-ref-color);
+  outline-offset: 2px;
+  text-decoration: none;
+}
+.comment-ref-flash {
+  animation: comment-ref-flash 1.6s var(--crit-ease);
+}
+@keyframes comment-ref-flash {
+  0%   { background-color: var(--crit-comment-ref-flash-bg); box-shadow: 0 0 0 2px var(--crit-comment-ref-flash-ring); }
+  15%  { background-color: var(--crit-comment-ref-flash-bg); box-shadow: 0 0 0 2px var(--crit-comment-ref-flash-ring); }
+  100% { background-color: transparent; box-shadow: 0 0 0 2px transparent; }
 }
 
 /* Save Template Dialog */
