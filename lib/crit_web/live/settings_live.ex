@@ -178,7 +178,7 @@ defmodule CritWeb.SettingsLive do
     user = socket.assigns.current_scope.user
 
     if socket.assigns.delete_confirmation == delete_confirmation_text(user) do
-      case Accounts.delete_account(user) do
+      case Accounts.delete_user(user) do
         :ok ->
           {:noreply,
            socket
