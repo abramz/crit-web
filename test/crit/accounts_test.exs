@@ -2,6 +2,7 @@ defmodule Crit.AccountsTest do
   use Crit.DataCase, async: true
 
   alias Crit.Accounts
+  alias Crit.User
 
   # Matches the normalized user map assent returns for GitHub and OIDC providers.
   # "sub" is the provider's unique user ID.
@@ -28,19 +29,39 @@ defmodule Crit.AccountsTest do
       assert user1.id == user2.id
     end
 
-    test "updates profile on subsequent login" do
+    test "updates email and avatar but preserves name on subsequent login" do
       {:ok, _} = Accounts.find_or_create_from_oauth("github", @oauth_params)
 
-      updated = Map.merge(@oauth_params, %{"name" => "Ada Byron", "email" => "ada2@example.com"})
+      updated =
+        Map.merge(@oauth_params, %{
+          "name" => "Ada Byron",
+          "email" => "ada2@example.com",
+          "picture" => "https://example.com/new-avatar.png"
+        })
+
       {:ok, user} = Accounts.find_or_create_from_oauth("github", updated)
 
-      assert user.name == "Ada Byron"
+      # Name from OAuth profile must NOT clobber the stored value.
+      assert user.name == "Ada Lovelace"
       assert user.email == "ada2@example.com"
+      assert user.avatar_url == "https://example.com/new-avatar.png"
+    end
+
+    test "preserves a user-edited name across re-login" do
+      {:ok, user} = Accounts.find_or_create_from_oauth("github", @oauth_params)
+      {:ok, _} = Accounts.update_user_profile(user, %{"name" => "Custom"})
+
+      changed = Map.put(@oauth_params, "name", "Different From OAuth")
+      {:ok, reloaded} = Accounts.find_or_create_from_oauth("github", changed)
+
+      assert reloaded.name == "Custom"
     end
 
     test "treats same uid from different providers as different users" do
       {:ok, github_user} = Accounts.find_or_create_from_oauth("github", @oauth_params)
-      {:ok, custom_user} = Accounts.find_or_create_from_oauth("custom", @oauth_params)
+
+      custom_params = Map.put(@oauth_params, "email", "ada+custom@example.com")
+      {:ok, custom_user} = Accounts.find_or_create_from_oauth("custom", custom_params)
       refute github_user.id == custom_user.id
     end
 
@@ -105,7 +126,11 @@ defmodule Crit.AccountsTest do
     test "returns error when token does not belong to user" do
       {:ok, user1} = Accounts.find_or_create_from_oauth("github", @oauth_params)
 
-      other_params = Map.put(@oauth_params, "sub", "other_uid")
+      other_params =
+        @oauth_params
+        |> Map.put("sub", "other_uid")
+        |> Map.put("email", "other@example.com")
+
       {:ok, user2} = Accounts.find_or_create_from_oauth("github", other_params)
       {:ok, {_plaintext, token}} = Accounts.create_token(user2, "User2 token")
 
@@ -132,6 +157,70 @@ defmodule Crit.AccountsTest do
     end
   end
 
+  describe "register_user/1" do
+    alias Crit.AccountsFixtures
+
+    test "creates a user with valid attributes" do
+      attrs = AccountsFixtures.valid_user_attributes()
+      assert {:ok, user} = Accounts.register_user(attrs)
+      assert user.email == attrs.email
+      assert is_binary(user.hashed_password)
+      assert is_nil(user.password)
+    end
+
+    test "rejects duplicate email case-insensitively" do
+      attrs = AccountsFixtures.valid_user_attributes(email: "Dup@Example.com")
+      assert {:ok, _user} = Accounts.register_user(attrs)
+
+      dup_attrs =
+        AccountsFixtures.valid_user_attributes(email: "dup@EXAMPLE.com")
+
+      assert {:error, changeset} = Accounts.register_user(dup_attrs)
+      assert %{email: [_ | _]} = errors_on(changeset)
+    end
+  end
+
+  describe "get_user_by_email/1" do
+    alias Crit.AccountsFixtures
+
+    test "looks up a user case-insensitively" do
+      user = AccountsFixtures.user_fixture(email: "Mixed@Case.com")
+      assert found = Accounts.get_user_by_email("mixed@case.com")
+      assert found.id == user.id
+      assert found2 = Accounts.get_user_by_email("MIXED@CASE.COM")
+      assert found2.id == user.id
+    end
+
+    test "returns nil for unknown email" do
+      assert is_nil(Accounts.get_user_by_email("nobody@example.com"))
+    end
+  end
+
+  describe "get_user_by_email_and_password/2" do
+    alias Crit.AccountsFixtures
+
+    test "returns the user when the password is correct" do
+      password = AccountsFixtures.valid_user_password()
+      user = AccountsFixtures.user_fixture(%{password: password})
+      assert found = Accounts.get_user_by_email_and_password(user.email, password)
+      assert found.id == user.id
+    end
+
+    test "returns nil when the password is wrong" do
+      user = AccountsFixtures.user_fixture()
+      assert is_nil(Accounts.get_user_by_email_and_password(user.email, "wrong password"))
+    end
+
+    test "returns nil when the email is unknown" do
+      assert is_nil(
+               Accounts.get_user_by_email_and_password(
+                 "nobody@example.com",
+                 AccountsFixtures.valid_user_password()
+               )
+             )
+    end
+  end
+
   describe "list_tokens/1" do
     test "returns tokens for the user ordered by inserted_at desc" do
       {:ok, user} = Accounts.find_or_create_from_oauth("github", @oauth_params)
@@ -149,11 +238,130 @@ defmodule Crit.AccountsTest do
     test "does not return tokens for other users" do
       {:ok, user1} = Accounts.find_or_create_from_oauth("github", @oauth_params)
 
-      other_params = Map.put(@oauth_params, "sub", "other_uid2")
+      other_params =
+        @oauth_params
+        |> Map.put("sub", "other_uid2")
+        |> Map.put("email", "other2@example.com")
+
       {:ok, user2} = Accounts.find_or_create_from_oauth("github", other_params)
       {:ok, {_, _t}} = Accounts.create_token(user2, "User2 token")
 
       assert Accounts.list_tokens(user1.id) == []
+    end
+  end
+
+  describe "update_user_password/3" do
+    alias Crit.AccountsFixtures
+
+    test "updates with correct current password" do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, updated} =
+        Accounts.update_user_password(
+          user,
+          AccountsFixtures.valid_user_password(),
+          %{password: "another-strong-pw-1234", password_confirmation: "another-strong-pw-1234"}
+        )
+
+      assert User.valid_password?(updated, "another-strong-pw-1234")
+    end
+
+    test "rejects wrong current password" do
+      user = AccountsFixtures.user_fixture()
+
+      {:error, changeset} =
+        Accounts.update_user_password(user, "wrong", %{
+          password: "another-strong-pw-1234",
+          password_confirmation: "another-strong-pw-1234"
+        })
+
+      assert "is not valid" in errors_on(changeset).current_password
+    end
+  end
+
+  describe "find_or_create_from_oauth/2 — email linking" do
+    alias Crit.AccountsFixtures
+
+    test "links to an existing local-only user with matching email" do
+      local = AccountsFixtures.user_fixture(email: "shared@example.com")
+
+      {:ok, linked} =
+        Accounts.find_or_create_from_oauth("github", %{
+          "sub" => "uid-123",
+          "email" => "shared@example.com",
+          "name" => "OAuth"
+        })
+
+      assert linked.id == local.id
+      assert linked.provider == "github"
+      assert linked.provider_uid == "uid-123"
+      assert is_binary(linked.hashed_password)
+    end
+
+    test "still creates a new row when emails don't match" do
+      _local = AccountsFixtures.user_fixture(email: "alice@example.com")
+
+      {:ok, new_user} =
+        Accounts.find_or_create_from_oauth("github", %{
+          "sub" => "uid-999",
+          "email" => "bob@example.com",
+          "name" => "Bob"
+        })
+
+      refute new_user.hashed_password
+      assert new_user.email == "bob@example.com"
+    end
+  end
+
+  describe "update_user_profile/2" do
+    alias Crit.AccountsFixtures
+
+    test "updates name only when email key is absent" do
+      user = AccountsFixtures.user_fixture()
+      original_email = user.email
+
+      {:ok, updated} = Accounts.update_user_profile(user, %{"name" => "Just A Name"})
+      assert updated.name == "Just A Name"
+      assert updated.email == original_email
+    end
+
+    test "updates name and email atomically when both present" do
+      user = AccountsFixtures.user_fixture()
+      new_email = "combined-#{System.unique_integer([:positive])}@example.com"
+
+      {:ok, updated} =
+        Accounts.update_user_profile(user, %{"name" => "Both", "email" => new_email})
+
+      assert updated.name == "Both"
+      assert updated.email == new_email
+    end
+
+    test "returns error changeset on invalid email" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:error, %Ecto.Changeset{} = cs} =
+               Accounts.update_user_profile(user, %{"name" => "x", "email" => "bogus"})
+
+      assert "must have the @ sign and no spaces" in errors_on(cs).email
+    end
+
+    test "rejects empty email when key is present (treated as required)" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:error, %Ecto.Changeset{} = cs} =
+               Accounts.update_user_profile(user, %{"name" => "x", "email" => ""})
+
+      assert "can't be blank" in errors_on(cs).email
+    end
+
+    test "accepts oversize-bordering name (80 chars) and rejects 81" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:ok, _} =
+               Accounts.update_user_profile(user, %{"name" => String.duplicate("a", 80)})
+
+      assert {:error, _} =
+               Accounts.update_user_profile(user, %{"name" => String.duplicate("a", 81)})
     end
   end
 end

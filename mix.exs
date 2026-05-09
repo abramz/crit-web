@@ -71,6 +71,7 @@ defmodule Crit.MixProject do
       {:assent, "~> 0.2"},
       {:earmark, "~> 1.4"},
       {:sentry, "~> 13.0"},
+      {:bcrypt_elixir, "~> 3.0"},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test}

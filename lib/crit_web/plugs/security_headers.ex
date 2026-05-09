@@ -18,7 +18,9 @@ defmodule CritWeb.Plugs.SecurityHeaders do
       end
 
     "default-src 'self'; " <>
-      "script-src 'self' 'sha256-wm8xHXfA9tIFK/7McvhnPMGVuF/ErxqxEM1Clij75ec='; " <>
+      "script-src 'self' " <>
+      "'sha256-wm8xHXfA9tIFK/7McvhnPMGVuF/ErxqxEM1Clij75ec=' " <>
+      "'sha256-5M5rMNBzgt7ZyJO3HUsytrd8A0xED8wq015qtyeaFrw='; " <>
       "style-src 'self' 'unsafe-inline'; " <>
       "img-src 'self' data: blob: https://i.ytimg.com https://avatars.githubusercontent.com; " <>
       "font-src 'self'; " <>

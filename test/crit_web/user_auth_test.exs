@@ -4,6 +4,7 @@ defmodule CritWeb.UserAuthTest do
   use CritWeb.ConnCase, async: false
 
   alias Crit.Accounts.Scope
+  alias Crit.AccountsFixtures
   alias CritWeb.UserAuth
 
   describe "fetch_current_scope_for_user/2" do
@@ -48,6 +49,88 @@ defmodule CritWeb.UserAuthTest do
 
       assert conn.assigns.current_scope.user == nil
       assert Plug.Conn.get_session(conn, "user_id") == nil
+    end
+
+    test "loads user from remember-me cookie when session has no user_id", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      logged_in =
+        %{conn | secret_key_base: CritWeb.Endpoint.config(:secret_key_base)}
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      remember_cookie = logged_in.resp_cookies["_crit_web_user_remember_me"]
+      assert remember_cookie
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Map.put(:secret_key_base, CritWeb.Endpoint.config(:secret_key_base))
+        |> Plug.Test.put_req_cookie("_crit_web_user_remember_me", remember_cookie.value)
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert conn.assigns.current_scope.user.id == user.id
+      assert Plug.Conn.get_session(conn, "user_id") == user.id
+    end
+
+    test "remember-me cookie hit clears stale session keys (no fixation)", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      logged_in =
+        %{conn | secret_key_base: CritWeb.Endpoint.config(:secret_key_base)}
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      remember_cookie = logged_in.resp_cookies["_crit_web_user_remember_me"]
+
+      # An attacker plants attacker_identity in the session; the legitimate
+      # remember-me cookie must not carry it into the now-authenticated session.
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Map.put(:secret_key_base, CritWeb.Endpoint.config(:secret_key_base))
+        |> Plug.Test.put_req_cookie("_crit_web_user_remember_me", remember_cookie.value)
+        |> Plug.Test.init_test_session(%{"identity" => "attacker-planted-identity"})
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert conn.assigns.current_scope.user.id == user.id
+      refute Plug.Conn.get_session(conn, "identity") == "attacker-planted-identity"
+    end
+
+    test "deletes cookie and stays anonymous when remember-me token is unknown", %{conn: conn} do
+      # Build a conn with an unsigned/garbage cookie value — signed-cookie verification fails.
+      conn =
+        %{conn | secret_key_base: CritWeb.Endpoint.config(:secret_key_base)}
+        |> Plug.Test.put_req_cookie("_crit_web_user_remember_me", "not-a-valid-signed-cookie")
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert conn.assigns.current_scope.user == nil
+      assert Plug.Conn.get_session(conn, "user_id") == nil
+    end
+
+    test "deletes cookie when token row is missing from DB", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      logged_in =
+        %{conn | secret_key_base: CritWeb.Endpoint.config(:secret_key_base)}
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      remember_cookie = logged_in.resp_cookies["_crit_web_user_remember_me"]
+
+      # Wipe the remember_me row so the signed cookie verifies but the DB lookup misses.
+      Crit.Repo.delete_all(Crit.Accounts.UserToken)
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Map.put(:secret_key_base, CritWeb.Endpoint.config(:secret_key_base))
+        |> Plug.Test.put_req_cookie("_crit_web_user_remember_me", remember_cookie.value)
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert conn.assigns.current_scope.user == nil
+      assert Plug.Conn.get_session(conn, "user_id") == nil
+      assert conn.resp_cookies["_crit_web_user_remember_me"].max_age == 0
     end
 
     test "puts session display_name into anonymous scope", %{conn: conn} do
@@ -110,6 +193,44 @@ defmodule CritWeb.UserAuthTest do
     end
   end
 
+  describe "log_in_user/3" do
+    test "writes user_id to the session", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.log_in_user(user, %{})
+
+      assert get_session(conn, "user_id") == user.id
+    end
+
+    test "writes a remember_me cookie when requested", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      conn =
+        %{conn | secret_key_base: CritWeb.Endpoint.config(:secret_key_base)}
+        |> Plug.Test.init_test_session(%{})
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      assert conn.resp_cookies["_crit_web_user_remember_me"]
+      assert Crit.Repo.aggregate(Crit.Accounts.UserToken, :count) == 1
+    end
+  end
+
+  describe "log_out_user/1" do
+    test "clears session and remember-me cookie", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{"user_id" => user.id})
+        |> UserAuth.log_out_user()
+
+      refute get_session(conn, "user_id")
+    end
+  end
+
   defp create_user!(attrs \\ []) do
     base = %{
       provider: "test",
@@ -119,7 +240,7 @@ defmodule CritWeb.UserAuthTest do
     }
 
     %Crit.User{}
-    |> Crit.User.changeset(Map.merge(base, Map.new(attrs)))
+    |> Crit.User.oauth_changeset(Map.merge(base, Map.new(attrs)))
     |> Crit.Repo.insert!()
   end
 end

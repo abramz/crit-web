@@ -1,11 +1,65 @@
 defmodule Crit.Accounts do
+  @moduledoc """
+  Accounts context.
+
+  Note: the admin-role plan will later add a call to `apply_role_for_email/1`
+  inside `register_user/1` to assign roles based on email at registration time.
+  """
+
   import Ecto.Query
 
   alias Crit.{Repo, User, UserApiToken}
+  alias Crit.Accounts.UserToken
+
+  @doc """
+  Registers a user with email + password.
+
+  Returns `{:ok, user}` or `{:error, changeset}`.
+  """
+  def register_user(attrs) do
+    %User{}
+    |> User.registration_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Returns a changeset for tracking user registration changes (e.g. for LiveView forms).
+
+  The password is not hashed here.
+  """
+  def change_user_registration(%User{} = user, attrs \\ %{}) do
+    User.registration_changeset(user, attrs, hash_password: false)
+  end
+
+  @doc """
+  Gets a user by email (case-insensitive). Returns the user or nil.
+  """
+  def get_user_by_email(email) when is_binary(email) do
+    Repo.one(from u in User, where: fragment("lower(?)", u.email) == ^String.downcase(email))
+  end
+
+  @doc """
+  Gets a user by email and password.
+
+  Returns the user if the password is valid, otherwise nil.
+
+  Calls `User.valid_password?/2` even when no user is found, to keep timing
+  approximately constant against email-enumeration attacks.
+  """
+  def get_user_by_email_and_password(email, password)
+      when is_binary(email) and is_binary(password) do
+    user = get_user_by_email(email)
+    if User.valid_password?(user || %User{}, password), do: user
+  end
 
   @doc """
   Finds an existing user by provider + provider_uid, or creates one.
-  Updates name, email, and avatar_url on each login.
+
+  On first insert, the user's `:name` is taken from the OAuth profile.
+  On subsequent logins (existing user matched by provider+UID, or by email
+  for the email-link branch), only `:email`, `:avatar_url`, `:provider`,
+  and `:provider_uid` are updated — `:name` is preserved so user edits in
+  settings aren't clobbered.
 
   `oauth_params` is the normalized user map from assent:
     "sub" => provider UID, "name", "email", "picture"
@@ -13,7 +67,7 @@ defmodule Crit.Accounts do
   def find_or_create_from_oauth(provider, oauth_params) do
     provider_uid = oauth_params["sub"]
 
-    attrs = %{
+    insert_attrs = %{
       provider: provider,
       provider_uid: provider_uid,
       name: oauth_params["name"],
@@ -21,20 +75,40 @@ defmodule Crit.Accounts do
       avatar_url: oauth_params["picture"]
     }
 
-    if is_nil(provider_uid) do
-      %User{} |> User.changeset(attrs) |> Repo.insert()
-    else
-      case Repo.get_by(User, provider: provider, provider_uid: provider_uid) do
-        nil ->
-          %User{}
-          |> User.changeset(attrs)
-          |> Repo.insert()
+    update_attrs = Map.delete(insert_attrs, :name)
 
-        existing ->
-          existing
-          |> User.changeset(attrs)
-          |> Repo.update()
-      end
+    cond do
+      is_nil(provider_uid) ->
+        %User{} |> User.oauth_changeset(insert_attrs) |> Repo.insert()
+
+      existing = Repo.get_by(User, provider: provider, provider_uid: provider_uid) ->
+        existing |> User.oauth_update_changeset(update_attrs) |> Repo.update()
+
+      existing = insert_attrs.email && get_user_by_email(insert_attrs.email) ->
+        existing |> User.oauth_update_changeset(update_attrs) |> Repo.update()
+
+      true ->
+        %User{} |> User.oauth_changeset(insert_attrs) |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Fetches a user from a plaintext remember-me cookie token.
+
+  Hashes the plaintext, joins `users_tokens` to `users`, filters by the
+  `"remember_me"` context and 60-day TTL. Returns `{:ok, user}` on hit,
+  `{:error, :not_found}` otherwise (including malformed tokens).
+  """
+  def get_user_by_remember_me_token(plaintext) when is_binary(plaintext) do
+    case UserToken.verify_token_query(plaintext, "remember_me") do
+      {:ok, query} ->
+        case Repo.one(query) do
+          nil -> {:error, :not_found}
+          user -> {:ok, user}
+        end
+
+      :error ->
+        {:error, :not_found}
     end
   end
 
@@ -161,5 +235,49 @@ defmodule Crit.Accounts do
           {:error, _} -> {:error, :delete_failed}
         end
     end
+  end
+
+  @doc "Changeset for change-password form (validates current_password)."
+  def change_user_password(%User{} = user, attrs \\ %{}) do
+    User.password_changeset(user, attrs, hash_password: false)
+  end
+
+  @doc """
+  Validates current password and applies the change-password update. Deletes
+  all `remember_me` tokens for the user (forces re-login on other devices).
+  """
+  def update_user_password(%User{} = user, current_password, attrs) do
+    changeset =
+      user
+      |> User.password_changeset(attrs)
+      |> User.validate_current_password(current_password)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.update(:user, changeset)
+    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["remember_me"]))
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: u}} -> {:ok, u}
+      {:error, :user, cs, _} -> {:error, cs}
+    end
+  end
+
+  @doc "Changeset for the combined profile form (display name + email)."
+  def change_user_profile(%User{} = user, attrs \\ %{}) do
+    User.profile_changeset(user, attrs)
+  end
+
+  @doc """
+  Updates a user's profile (display name and optionally email) atomically.
+
+  Email is only cast/validated when the `"email"` key is present in `attrs`,
+  so the form may submit name-only when the email field is hidden (OAuth users).
+
+  Returns `{:ok, user}` or `{:error, changeset}`.
+  """
+  def update_user_profile(%User{} = user, attrs) do
+    user
+    |> User.profile_changeset(attrs)
+    |> Repo.update()
   end
 end

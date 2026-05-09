@@ -313,37 +313,43 @@
             </p>
             <span class="text-xs font-mono text-(--crit-brand) sm:text-right">required</span>
           </div>
-          <div class="grid grid-cols-[minmax(160px,220px)_1fr_80px] gap-x-4 items-baseline px-4 py-3 bg-(--crit-bg-card) max-sm:grid-cols-1 max-sm:gap-y-1">
-            <code class="text-sm font-mono text-(--crit-fg-primary)">ADMIN_PASSWORD</code>
-            <p class="text-sm text-(--crit-fg-secondary)">
-              Password for the admin dashboard. If unset and no OAuth configured, dashboard is open to anyone.
-            </p>
-            <span class="text-xs font-mono text-(--crit-fg-muted) sm:text-right">optional</span>
-          </div>
         </div>
       </div>
 
-      <%!-- OAuth group --%>
+      <%!-- Authentication group --%>
+      <div
+        phx-no-format
+        class="max-w-[640px] mt-8 mb-5 text-sm text-(--crit-fg-secondary) leading-relaxed space-y-3"
+      >
+        <h3 class="text-base font-semibold tracking-tight text-(--crit-fg-primary)">Authentication</h3>
+        <p>Pick one of three ways for your team to sign in:</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>
+            <strong class="text-(--crit-fg-primary)">GitHub OAuth</strong> — set <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_CLIENT_ID</code> and <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_CLIENT_SECRET</code>.
+          </li>
+          <li>
+            <strong class="text-(--crit-fg-primary)">Bring your own OAuth / OIDC</strong> — set <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_CLIENT_ID</code>, <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_CLIENT_SECRET</code>, and <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_BASE_URL</code> for Google, GitLab, Keycloak, Okta, or any other OIDC provider.
+          </li>
+          <li>
+            <strong class="text-(--crit-fg-primary)">Basic accounts</strong> — email + password managed by crit-web. No OAuth setup. Set <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">LOCAL_REGISTRATION_ENABLED=true</code>, then sign up at <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">/users/register</code> and flip it back to <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">false</code> once your team is in.
+          </li>
+        </ul>
+        <p>
+          The two OAuth options are mutually exclusive. Basic accounts are off by default and can run on their own or alongside either OAuth provider — useful for service accounts or users without an SSO identity.
+        </p>
+      </div>
+
       <div class="border border-(--crit-border) rounded-lg overflow-hidden mb-3">
         <div class="px-4 py-2 bg-(--crit-bg-elevated) border-b border-(--crit-border)">
           <span class="text-xs font-mono tracking-widest uppercase text-(--crit-fg-muted)">
-            OAuth
+            Authentication
           </span>
-        </div>
-        <div class="px-4 py-2.5 bg-(--crit-bg-card) border-b border-(--crit-border) flex items-center gap-2">
-          <span class="text-(--crit-brand) text-sm leading-none select-none">&#9432;</span>
-          <p class="text-sm text-(--crit-fg-secondary)">
-            Use <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_*</code>
-            or <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_*</code>
-            — not both.
-            When either is set, OAuth login is required to access the dashboard and view reviews.
-          </p>
         </div>
         <div class="divide-y divide-(--crit-border)">
           <div class="grid grid-cols-[minmax(160px,220px)_1fr_80px] gap-x-4 items-baseline px-4 py-3 bg-(--crit-bg-card) max-sm:grid-cols-1 max-sm:gap-y-1">
             <code class="text-sm font-mono text-(--crit-fg-primary)">GITHUB_CLIENT_ID</code>
             <p phx-no-format class="text-sm text-(--crit-fg-secondary)">
-              GitHub OAuth App client ID. Set alongside <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_CLIENT_SECRET</code> to enable GitHub login. When set, OAuth is required to access the dashboard and view reviews.
+              GitHub OAuth App client ID. Set alongside <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_CLIENT_SECRET</code> to enable GitHub login.
             </p>
             <span class="text-xs font-mono text-(--crit-fg-muted) sm:text-right">optional</span>
           </div>
@@ -355,7 +361,7 @@
           <div class="grid grid-cols-[minmax(160px,220px)_1fr_80px] gap-x-4 items-baseline px-4 py-3 bg-(--crit-bg-card) max-sm:grid-cols-1 max-sm:gap-y-1">
             <code class="text-sm font-mono text-(--crit-fg-primary)">OAUTH_CLIENT_ID</code>
             <p phx-no-format class="text-sm text-(--crit-fg-secondary)">
-              Generic OIDC/OAuth2 client ID. Use with <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_CLIENT_SECRET</code> and <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_BASE_URL</code> for providers like Google, GitLab, or Okta. Mutually exclusive with <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_CLIENT_ID</code>.
+              Generic OIDC/OAuth2 client ID. Use with <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_CLIENT_SECRET</code> and <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">OAUTH_BASE_URL</code>. Mutually exclusive with <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">GITHUB_CLIENT_ID</code>.
             </p>
             <span class="text-xs font-mono text-(--crit-fg-muted) sm:text-right">optional</span>
           </div>
@@ -368,6 +374,18 @@
             <code class="text-sm font-mono text-(--crit-fg-primary)">OAUTH_BASE_URL</code>
             <p phx-no-format class="text-sm text-(--crit-fg-secondary)">
               OIDC discovery base URL, e.g. <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">https://accounts.google.com</code>
+            </p>
+            <span class="text-xs font-mono text-(--crit-fg-muted) sm:text-right">optional</span>
+          </div>
+          <div class="grid grid-cols-[minmax(160px,220px)_1fr_80px] gap-x-4 items-baseline px-4 py-3 bg-(--crit-bg-card) max-sm:grid-cols-1 max-sm:gap-y-1">
+            <div>
+              <code class="text-sm font-mono text-(--crit-fg-primary)">
+                LOCAL_REGISTRATION_ENABLED
+              </code>
+              <span class="ml-2 text-xs font-mono text-(--crit-fg-muted)">false</span>
+            </div>
+            <p phx-no-format class="text-sm text-(--crit-fg-secondary)">
+              Set to <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">true</code> to open <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">/users/register</code> for email + password sign-ups. Flip back to <code class="text-xs bg-(--crit-bg-elevated) px-1 rounded">false</code> once your team is in.
             </p>
             <span class="text-xs font-mono text-(--crit-fg-muted) sm:text-right">optional</span>
           </div>

@@ -66,10 +66,6 @@ if frontend_dsn = System.get_env("SENTRY_FRONTEND_DSN") do
   }
 end
 
-if admin_password = System.get_env("ADMIN_PASSWORD") do
-  config :crit, :admin_password, admin_password
-end
-
 # OAuth provider — configure exactly one provider per deployment.
 #
 # Hosted (GitHub):
@@ -96,6 +92,12 @@ cond do
   true ->
     :ok
 end
+
+# Local registration (email + password). Off by default — operators who want
+# basic accounts opt in explicitly. Combine with OAuth or use standalone.
+config :crit,
+       :local_registration_enabled,
+       System.get_env("LOCAL_REGISTRATION_ENABLED") in ~w(true 1)
 
 if System.get_env("PHX_SERVER") do
   config :crit, CritWeb.Endpoint, server: true

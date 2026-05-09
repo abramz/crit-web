@@ -52,3 +52,5 @@ config :crit, :oauth_provider,
   strategy: Assent.Strategy.Github,
   client_id: "test_github_client_id",
   client_secret: "test_github_client_secret"
+
+config :bcrypt_elixir, :log_rounds, 4

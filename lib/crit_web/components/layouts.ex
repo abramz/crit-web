@@ -35,55 +35,7 @@ defmodule CritWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <svg class="h-5 w-auto" viewBox="50 -1600 3430 1650" aria-label="crit">
-            <g transform="scale(1,-1)">
-              <path
-                d="M628 -22Q459 -22 336.5 50.5Q214 123 147.5 252.5Q81 382 81 554Q81 727 147.5 857.0Q214 987 336.5 1059.5Q459 1132 628 1132Q827 1132 960.0 1032.5Q1093 933 1125 760L846 708Q827 795 772.5 845.5Q718 896 631 896Q511 896 449.0 801.5Q387 707 387 555Q387 405 449.0 309.5Q511 214 631 214Q718 214 774.0 266.5Q830 319 848 409L1127 358Q1095 181 962.0 79.5Q829 -22 628 -22Z"
-                fill="currentColor"
-              /><path
-                d="M128 0V1118H418V923H430Q461 1026 533.5 1079.5Q606 1133 700 1133Q751 1133 797 1123V855Q777 861 738.5 865.5Q700 870 667 870Q563 870 495.5 805.0Q428 740 428 636V0Z"
-                fill="currentColor"
-                transform="translate(1103,0)"
-              /><path
-                d="M128 0V1118H428V0ZM278 1264Q210 1264 162.0 1309.0Q114 1354 114 1418Q114 1482 162.0 1527.0Q210 1572 278 1572Q346 1572 394.5 1527.0Q443 1482 443 1418Q443 1354 394.5 1309.0Q346 1264 278 1264Z"
-                fill="currentColor"
-                transform="translate(1835,0)"
-              /><path
-                d="M683 1118V889H474V327Q474 223 576 223Q593 223 623.5 227.5Q654 232 671 236L714 11Q664 -4 614.5 -10.0Q565 -16 520 -16Q352 -16 263.0 65.5Q174 147 174 301V889H20V1118H174V1384H474V1118Z"
-                fill="currentColor"
-                transform="translate(2288,0)"
-              /><path
-                d="M342 -19Q269 -19 219.0 30.5Q169 80 169 153Q169 226 219.0 275.5Q269 325 342 325Q415 325 465.0 275.5Q515 226 515 153Q515 80 465.0 30.5Q415 -19 342 -19Z"
-                fill="#7aa2f7"
-                transform="translate(2936,0)"
-              />
-            </g>
-          </svg>
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+    <.site_header current_scope={@current_scope} />
 
     <main class="px-4 py-20 sm:px-6 lg:px-8">
       <div class="mx-auto max-w-2xl space-y-4">
@@ -398,7 +350,6 @@ defmodule CritWeb.Layouts do
   and at the bottom of the mobile drawer.
   """
   attr :authenticated, :boolean, default: true
-  attr :password_required, :boolean, default: false
   attr :current_scope, :any, default: nil
   attr :show_overview_link, :boolean, default: false
   attr :current_page, :atom, default: nil
@@ -604,14 +555,7 @@ defmodule CritWeb.Layouts do
               </div>
             </div>
           <% else %>
-            <%= if @password_required and not @authenticated do %>
-              <a
-                href="#login"
-                class="text-sm text-(--crit-fg-secondary) hover:text-(--crit-fg-primary) transition-colors max-sm:hidden"
-              >
-                Sign in
-              </a>
-            <% end %>
+            <.sign_in_button class="mr-1.5" />
           <% end %>
 
           <.theme_toggle />
@@ -684,16 +628,9 @@ defmodule CritWeb.Layouts do
               <span>Sign out</span>
             </.link>
           <% else %>
-            <%= if @password_required and @authenticated do %>
-              <.form for={%{}} action={~p"/auth/logout"} method="post" id="logout-form-mobile">
-                <button
-                  type="submit"
-                  class="text-sm text-(--crit-red) hover:opacity-80 transition-opacity cursor-pointer py-2 px-2"
-                >
-                  Sign out
-                </button>
-              </.form>
-            <% end %>
+            <div class="px-2 py-2.5">
+              <.sign_in_button />
+            </div>
           <% end %>
         </div>
       </div>
@@ -755,30 +692,73 @@ defmodule CritWeb.Layouts do
   end
 
   @doc """
+  Resolves where the "Sign in" link should go for an unauthenticated visitor,
+  based on the 4-combo of `:local_registration_enabled` and OAuth presence:
+
+      registration | oauth      | target
+      ------------ | ---------- | --------------
+      true         | *          | /users/log_in
+      false        | configured | /auth/login
+      false        | none       | :hidden
+  """
+  @spec sign_in_target() :: {:link, String.t()} | :hidden
+  def sign_in_target do
+    registration = Application.get_env(:crit, :local_registration_enabled, true)
+    oauth = Crit.Config.oauth_configured?()
+
+    cond do
+      registration -> {:link, ~p"/users/log_in"}
+      oauth -> {:link, ~p"/auth/login"}
+      true -> :hidden
+    end
+  end
+
+  @doc """
   Renders the primary "Sign in" CTA button. Shows a GitHub icon when the
   configured OAuth strategy is GitHub.
+
+  Honors `sign_in_target/0`: when no auth path is enabled the button is
+  not rendered at all.
   """
   attr :return_to, :string, default: "/dashboard"
   attr :class, :string, default: ""
 
   def sign_in_button(assigns) do
-    assigns = assign(assigns, :github_oauth?, github_oauth?())
+    assigns =
+      assigns
+      |> assign(:github_oauth?, github_oauth?())
+      |> assign(:sign_in_target, sign_in_target())
 
     ~H"""
-    <a
-      href={~p"/auth/login?return_to=#{@return_to}"}
-      class={[
-        "inline-flex items-center gap-1.5 h-[30px] px-3 rounded-md text-sm font-medium tracking-tight no-underline bg-(--crit-brand-cta) text-white hover:bg-(--crit-brand-cta-hover) transition-colors focus:outline-none focus-visible:shadow-[0_0_0_2px_var(--crit-bg-page),0_0_0_4px_var(--crit-focus-ring)]",
-        @class
-      ]}
-    >
-      <%= if @github_oauth? do %>
-        <svg viewBox="0 0 16 16" class="size-3.5 fill-current" aria-hidden="true">
-          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-        </svg>
-      <% end %>
-      Sign in
-    </a>
+    <%= case @sign_in_target do %>
+      <% {:link, "/auth/login"} -> %>
+        <a
+          href={~p"/auth/login?return_to=#{@return_to}"}
+          class={[
+            "inline-flex items-center gap-1.5 h-[30px] px-3 rounded-md text-sm font-medium tracking-tight no-underline bg-(--crit-brand-cta) text-white hover:bg-(--crit-brand-cta-hover) transition-colors focus:outline-none focus-visible:shadow-[0_0_0_2px_var(--crit-bg-page),0_0_0_4px_var(--crit-focus-ring)]",
+            @class
+          ]}
+        >
+          <%= if @github_oauth? do %>
+            <svg viewBox="0 0 16 16" class="size-3.5 fill-current" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+          <% end %>
+          Sign in
+        </a>
+      <% {:link, href} -> %>
+        <.link
+          navigate={href}
+          class={[
+            "inline-flex items-center gap-1.5 h-[30px] px-3 rounded-md text-sm font-medium tracking-tight no-underline bg-(--crit-brand-cta) text-white hover:bg-(--crit-brand-cta-hover) transition-colors focus:outline-none focus-visible:shadow-[0_0_0_2px_var(--crit-bg-page),0_0_0_4px_var(--crit-focus-ring)]",
+            @class
+          ]}
+        >
+          Sign in
+        </.link>
+      <% :hidden -> %>
+        <%!-- no sign-in target configured --%>
+    <% end %>
     """
   end
 
