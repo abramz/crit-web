@@ -102,8 +102,36 @@ defmodule CritWeb.Router do
       on_mount: [{CritWeb.UserAuth, :require_authenticated_user}],
       session: {CritWeb.Live.SessionHelper, :user_session_opts, []} do
       live "/dashboard", DashboardLive, :index
+      live "/reviews", ReviewsLive, :index
       live "/settings", SettingsLive, :index
+      live "/orgs", Org.SelectLive, :index
+      live "/orgs/new", Org.NewLive, :index
+      live "/invites/:token", Org.InviteAcceptLive, :index
     end
+
+    live_session :org,
+      on_mount: [
+        {CritWeb.UserAuth, :require_authenticated_user},
+        {CritWeb.UserAuth, :ensure_org}
+      ],
+      session: {CritWeb.Live.SessionHelper, :user_session_opts, []} do
+      live "/orgs/:org_slug", Org.OverviewLive, :index
+      live "/orgs/:org_slug/reviews", Org.ReviewsLive, :index
+      live "/orgs/:org_slug/members", Org.MembersLive, :index
+    end
+
+    live_session :org_admin,
+      on_mount: [
+        {CritWeb.UserAuth, :require_authenticated_user},
+        {CritWeb.UserAuth, :ensure_org},
+        {CritWeb.UserAuth, :require_org_admin}
+      ],
+      session: {CritWeb.Live.SessionHelper, :user_session_opts, []} do
+      live "/orgs/:org_slug/settings", Org.SettingsLive, :index
+    end
+
+    post "/invites/:token/accept", OrgSessionController, :accept_invite
+    post "/invites/:id/accept-direct", OrgSessionController, :accept_invite_direct
 
     live_session :admin,
       on_mount: [{CritWeb.UserAuth, :require_selfhosted_auth}],
@@ -177,6 +205,7 @@ defmodule CritWeb.Router do
     pipe_through [:auth_api, :noindex]
 
     get "/whoami", AuthApiController, :whoami
+    get "/orgs", AuthApiController, :orgs
     delete "/token", AuthApiController, :revoke
   end
 
@@ -207,6 +236,14 @@ defmodule CritWeb.Router do
       post "/reviews/:token/seed-reply/:comment_id", ApiController, :seed_reply
       post "/reviews/:token/seed-resolve/:comment_id", ApiController, :seed_resolve
       post "/test/seed-user", ApiController, :seed_user
+      post "/test/seed-org", ApiController, :seed_org
+    end
+  end
+
+  if Mix.env() == :dev do
+    scope "/dev" do
+      pipe_through :browser
+      forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
   end
 

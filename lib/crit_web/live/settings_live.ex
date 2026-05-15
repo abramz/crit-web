@@ -3,6 +3,7 @@ defmodule CritWeb.SettingsLive do
 
   alias Crit.Accounts
   alias Crit.Accounts.Scope
+  alias Crit.Organizations
 
   import CritWeb.Helpers, only: [time_ago: 1]
 
@@ -24,11 +25,13 @@ defmodule CritWeb.SettingsLive do
       |> assign(:keep_reviews, user.keep_reviews)
       |> assign(:marketing_opted_in, Accounts.marketing_opted_in?(user))
       |> assign(:selfhosted, Application.get_env(:crit, :selfhosted) == true)
+      |> assign(:orgs, Organizations.list_user_organizations(socket.assigns.current_scope))
       |> assign(:local_registration_enabled, local_registration_enabled)
       |> assign(:has_password, is_binary(user.hashed_password))
       |> assign(:can_edit_email, is_nil(user.provider) and local_registration_enabled)
       |> assign(:profile_form, to_form(Accounts.change_user_profile(user), as: "user"))
       |> assign(:password_form, to_form(Accounts.change_user_password(user), as: "user"))
+      |> assign(:orgs, Organizations.list_user_organizations(socket.assigns.current_scope))
 
     {:ok, socket, layout: false}
   end

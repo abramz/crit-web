@@ -1,0 +1,144 @@
+<Layouts.flash_group flash={@flash} />
+
+<div class="min-h-screen bg-(--crit-bg-page) text-(--crit-fg-primary) font-sans flex flex-col">
+  <Layouts.dashboard_header
+    current_scope={@current_scope}
+    show_overview_link={@selfhosted}
+    current_page={:org_overview}
+    orgs={@orgs}
+  />
+
+  <div class="max-w-7xl mx-auto w-full px-8 my-10 max-sm:px-4">
+    <%!-- Hero strip --%>
+    <div class="mb-6">
+      <p class="font-mono text-[11px] uppercase tracking-[0.08em] text-(--crit-fg-muted) mb-2">
+        Overview
+      </p>
+      <h1 class="text-2xl font-bold text-(--crit-fg-primary) leading-tight">
+        {@greeting}
+      </h1>
+    </div>
+
+    <%!-- Main grid: reviews feed + members sidebar --%>
+    <div class={[
+      "grid gap-6 items-start",
+      if(length(@members) > 1,
+        do: "grid-cols-[1fr_320px] max-md:grid-cols-1",
+        else: "grid-cols-1 max-w-3xl"
+      )
+    ]}>
+      <%!-- Left: Recent shared reviews --%>
+      <div>
+        <div class="flex items-center justify-between mb-3.5">
+          <h2 class="text-[15px] font-semibold text-(--crit-fg-primary)">
+            Recent shared reviews
+          </h2>
+        </div>
+
+        <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-lg overflow-hidden">
+          <%= if @reviews == [] do %>
+            <div class="px-6 py-10 text-center">
+              <div class="text-(--crit-fg-muted) mb-1">
+                <.icon name="hero-document-text" class="size-8 mx-auto" />
+              </div>
+              <p class="text-sm text-(--crit-fg-secondary) mt-3">
+                No reviews shared yet.
+              </p>
+              <p class="text-xs text-(--crit-fg-muted) mt-1">
+                Reviews shared to this organization will appear here.
+              </p>
+            </div>
+          <% else %>
+            <ul class="divide-y divide-(--crit-border)">
+              <li
+                :for={review <- @reviews}
+                class="px-4 py-3 hover:bg-(--crit-bg-hover) transition-colors"
+              >
+                <.link navigate={~p"/r/#{review.token}"} class="block no-underline">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-medium text-(--crit-fg-primary) truncate">
+                        {review.first_file_path || "review"}
+                      </p>
+                      <div class="flex items-center gap-3 mt-0.5">
+                        <span :if={review.author_name} class="text-xs text-(--crit-fg-muted)">
+                          {review.author_name}
+                        </span>
+                        <span class="text-xs text-(--crit-fg-muted)">
+                          {review.file_count} {if review.file_count == 1,
+                            do: "file",
+                            else: "files"}
+                        </span>
+                        <span
+                          :if={review.comment_count > 0}
+                          class="text-xs text-(--crit-fg-muted)"
+                        >
+                          {review.comment_count} {if review.comment_count == 1,
+                            do: "comment",
+                            else: "comments"}
+                        </span>
+                      </div>
+                    </div>
+                    <time
+                      class="text-xs text-(--crit-fg-muted) whitespace-nowrap flex-shrink-0"
+                      datetime={DateTime.to_iso8601(review.last_activity_at)}
+                    >
+                      {Calendar.strftime(review.last_activity_at, "%b %-d")}
+                    </time>
+                  </div>
+                </.link>
+              </li>
+            </ul>
+          <% end %>
+        </div>
+
+        <%= if @reviews != [] do %>
+          <div class="mt-3 text-right">
+            <.link
+              navigate={~p"/orgs/#{@org.slug}/reviews"}
+              class="text-[13px] font-medium text-(--crit-brand) hover:underline no-underline"
+            >
+              View all reviews &rarr;
+            </.link>
+          </div>
+        <% end %>
+      </div>
+
+      <%!-- Right sidebar: Members peek --%>
+      <aside :if={length(@members) > 1} class="flex flex-col gap-4">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-[11px] text-(--crit-fg-muted) uppercase tracking-[0.08em] font-medium">
+              Members
+            </h3>
+            <.link
+              navigate={~p"/orgs/#{@org.slug}/members"}
+              class="text-[11px] font-medium text-(--crit-brand) hover:underline no-underline normal-case tracking-normal"
+            >
+              Manage &rarr;
+            </.link>
+          </div>
+          <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-lg p-3.5 flex flex-wrap gap-1.5">
+            <span
+              :for={member <- @members}
+              class="w-7 h-7 rounded-full inline-flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+              style="background: rgba(122,162,247,0.18); color: #7aa2f7;"
+              title={member.user.name || member.user.email}
+            >
+              <%= if member.user.avatar_url do %>
+                <img
+                  src={member.user.avatar_url}
+                  alt=""
+                  class="w-7 h-7 rounded-full"
+                />
+              <% else %>
+                {String.first(member.user.name || member.user.email || "?")
+                |> String.upcase()}
+              <% end %>
+            </span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>

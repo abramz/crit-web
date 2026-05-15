@@ -2,14 +2,21 @@ defmodule CritWeb.DashboardLive do
   use CritWeb, :live_view
 
   alias Crit.{Accounts, Reviews}
+  alias Crit.Organizations
 
-  import CritWeb.Components.ReviewSnippet
-  import CritWeb.Components.ReviewListingHeader
+  import CritWeb.Helpers, only: [time_ago: 1, split_path: 1, activity_status: 1]
+
+  @recent_review_limit 4
 
   @impl true
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_scope.user
-    reviews = Reviews.list_user_reviews_with_counts(socket.assigns.current_scope)
+    scope = socket.assigns.current_scope
+    user = scope.user
+
+    {recent_reviews, review_count} =
+      Reviews.list_user_reviews_paginated(scope, page: 1, per_page: @recent_review_limit)
+
+    orgs = Organizations.list_user_organizations(scope)
 
     socket =
       socket
@@ -18,8 +25,9 @@ defmodule CritWeb.DashboardLive do
       |> assign(:selfhosted, Application.get_env(:crit, :selfhosted) == true)
       |> assign(:instance_url, CritWeb.Endpoint.url())
       |> assign(:marketing_opted_in, Accounts.marketing_opted_in?(user))
-      |> stream(:reviews, reviews)
-      |> assign(:review_count, length(reviews))
+      |> assign(:orgs, orgs)
+      |> assign(:recent_reviews, recent_reviews)
+      |> assign(:review_count, review_count)
 
     {:ok, socket, layout: false}
   end

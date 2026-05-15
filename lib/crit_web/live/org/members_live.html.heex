@@ -1,0 +1,348 @@
+<Layouts.flash_group flash={@flash} />
+
+<div class="min-h-screen bg-(--crit-bg-page) text-(--crit-fg-primary) font-sans flex flex-col">
+  <Layouts.dashboard_header
+    current_scope={@current_scope}
+    show_overview_link={@selfhosted}
+    current_page={:org_members}
+    orgs={@orgs}
+  />
+
+  <div class="max-w-7xl mx-auto w-full px-8 my-10 max-sm:px-4">
+    <%!-- Page head --%>
+    <div class="flex items-end justify-between mb-6 gap-4 max-sm:flex-col max-sm:items-start">
+      <div>
+        <p class="font-mono text-[11px] uppercase tracking-[0.08em] text-(--crit-fg-muted) mb-2">
+          {@org.name}
+        </p>
+        <h1 class="text-[24px] font-bold tracking-[-0.02em] text-(--crit-fg-primary)">Members</h1>
+        <p class="text-[14px] text-(--crit-fg-secondary) mt-1">
+          Invite teammates, review pending invitations, and manage roles.
+        </p>
+      </div>
+    </div>
+
+    <%!-- Seat usage bar --%>
+    <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-xl p-4 mb-6 flex items-center gap-5">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-baseline gap-2.5">
+          <span class="text-[15px] font-semibold">Seats</span>
+          <span class="text-[13px] text-(--crit-fg-muted)">
+            <span class="font-mono font-semibold text-(--crit-fg-primary)">
+              {length(@members)}
+            </span>
+            used &middot; unlimited during beta
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <%!-- Invite by email (admin only) --%>
+    <section :if={@is_admin} class="mb-9">
+      <h2 class="text-[16px] font-semibold text-(--crit-fg-primary) pb-3 border-b border-(--crit-border) mb-6">
+        Invite by email
+      </h2>
+      <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-xl p-[18px]">
+        <.form
+          for={@invite_form}
+          id="send_invite_form"
+          phx-change="validate_invite"
+          phx-submit="send_invite"
+          class="flex gap-2.5 items-start max-sm:flex-col max-sm:items-stretch"
+        >
+          <div class="flex-1 min-w-0">
+            <label
+              for={@invite_form[:email].id}
+              class="block font-mono text-[11px] uppercase tracking-[0.08em] text-(--crit-fg-muted) mb-1.5"
+            >
+              Email addresses
+            </label>
+            <input
+              type="text"
+              name={@invite_form[:email].name}
+              id={@invite_form[:email].id}
+              value={Phoenix.HTML.Form.normalize_value("text", @invite_form[:email].value)}
+              placeholder="teammate@example.com, another@example.com..."
+              autocomplete="off"
+              aria-describedby="invite-email-errors"
+              class="block w-full px-3 py-2.5 text-[14px] bg-(--crit-bg-page) border border-(--crit-border) rounded-md text-(--crit-fg-primary) placeholder:text-(--crit-fg-muted) focus:outline-none focus:border-(--crit-brand) focus:shadow-[0_0_0_3px_var(--crit-brand-subtle)] transition-[border-color] leading-normal"
+            />
+            <p
+              :for={msg <- Enum.map(@invite_form[:email].errors, &translate_error/1)}
+              id="invite-email-errors"
+              class="text-xs text-(--crit-red) mt-1.5"
+            >
+              {msg}
+            </p>
+            <p class="text-[12px] text-(--crit-fg-muted) mt-1.5">
+              Separate multiple emails with commas or spaces.
+            </p>
+          </div>
+          <div class="w-40 max-sm:w-full">
+            <label
+              for={@invite_form[:role].id}
+              class="block font-mono text-[11px] uppercase tracking-[0.08em] text-(--crit-fg-muted) mb-1.5"
+            >
+              Role
+            </label>
+            <select
+              name={@invite_form[:role].name}
+              id={@invite_form[:role].id}
+              class="block w-full px-3 py-2.5 text-[14px] bg-(--crit-bg-page) border border-(--crit-border) rounded-md text-(--crit-fg-primary) focus:outline-none focus:border-(--crit-brand)"
+            >
+              <option value="member" selected={@invite_form[:role].value in [nil, "", "member"]}>
+                Member
+              </option>
+              <option value="admin" selected={@invite_form[:role].value == "admin"}>Admin</option>
+            </select>
+          </div>
+          <div class="max-sm:pt-0">
+            <label class="block font-mono text-[11px] uppercase tracking-[0.08em] text-transparent mb-1.5 max-sm:hidden">
+              &nbsp;
+            </label>
+            <button
+              type="submit"
+              phx-disable-with="Sending..."
+              class="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold bg-(--crit-brand-cta) text-(--crit-fg-on-brand) rounded-lg hover:bg-(--crit-brand-cta-hover) transition-all whitespace-nowrap cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand) focus-visible:ring-offset-1"
+            >
+              <.icon name="hero-envelope" class="size-3.5" /> Send invites
+            </button>
+          </div>
+        </.form>
+      </div>
+    </section>
+
+    <%!-- Tabs + filters --%>
+    <div class="flex items-center justify-between mb-4 gap-3 max-sm:flex-col max-sm:items-stretch">
+      <div
+        role="tablist"
+        class="inline-flex gap-0.5 bg-(--crit-bg-card) border border-(--crit-border) rounded-lg p-[3px]"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={to_string(@tab == "active")}
+          phx-click="switch_tab"
+          phx-value-tab="active"
+          class={[
+            "px-3 py-1 text-[13px] font-medium rounded-md transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand) focus-visible:ring-offset-1",
+            if(@tab == "active",
+              do: "bg-(--crit-bg-elevated) text-(--crit-fg-primary)",
+              else: "text-(--crit-fg-muted) hover:text-(--crit-fg-primary)"
+            )
+          ]}
+        >
+          Active <span class="text-(--crit-fg-muted) ml-1.5">{length(@members)}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={to_string(@tab == "pending")}
+          phx-click="switch_tab"
+          phx-value-tab="pending"
+          class={[
+            "px-3 py-1 text-[13px] font-medium rounded-md transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand) focus-visible:ring-offset-1",
+            if(@tab == "pending",
+              do: "bg-(--crit-bg-elevated) text-(--crit-fg-primary)",
+              else: "text-(--crit-fg-muted) hover:text-(--crit-fg-primary)"
+            )
+          ]}
+        >
+          Pending <span class="ml-1.5">{length(@invites)}</span>
+        </button>
+      </div>
+    </div>
+
+    <%!-- Active members table --%>
+    <section :if={@tab == "active"} role="tabpanel" class="mb-7">
+      <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-xl overflow-hidden overflow-x-auto">
+        <table class="w-full text-[13px] min-w-[480px]">
+          <thead>
+            <tr class="border-b border-(--crit-border)">
+              <th class="text-left pl-[18px] py-2.5 pr-4 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider">
+                Member
+              </th>
+              <th class="text-left px-4 py-2.5 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider">
+                Role
+              </th>
+              <th class="text-left px-4 py-2.5 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider max-sm:hidden">
+                Joined
+              </th>
+              <th class="text-right pr-[18px] py-2.5">
+                <span class="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for member <- @members do %>
+              <tr class="border-b border-(--crit-border) last:border-b-0 hover:bg-(--crit-bg-elevated) group">
+                <%!-- Member: avatar + name + email --%>
+                <td class="py-3 pr-4 pl-[18px]">
+                  <div class="flex items-center gap-2.5">
+                    <%= if member.user.avatar_url do %>
+                      <img
+                        src={member.user.avatar_url}
+                        alt=""
+                        class="h-7 w-7 rounded-full flex-shrink-0"
+                      />
+                    <% else %>
+                      <span
+                        class="h-7 w-7 rounded-full inline-flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                        style="background: rgba(122,162,247,0.18); color: #7aa2f7;"
+                      >
+                        {String.first(member.user.name || member.user.email || "?")
+                        |> String.upcase()}
+                      </span>
+                    <% end %>
+                    <div class="min-w-0">
+                      <div class="font-semibold text-[13px] text-(--crit-fg-primary) truncate">
+                        {member.user.name || "—"}
+                        <span
+                          :if={member.user.id == @current_user_id}
+                          class="text-(--crit-fg-muted) font-normal ml-1.5"
+                        >
+                          (you)
+                        </span>
+                      </div>
+                      <div class="text-[12px] text-(--crit-fg-muted) truncate">
+                        {member.user.email}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+
+                <%!-- Role --%>
+                <td class="px-4 py-3">
+                  <%= if @is_admin and member.user.id != @current_user_id do %>
+                    <form phx-change="change_role" class="inline-flex">
+                      <input type="hidden" name="user_id" value={member.user.id} />
+                      <select
+                        name="role"
+                        class="w-[100px] px-2 py-1 text-[12px] bg-(--crit-bg-card) border border-(--crit-border) rounded text-(--crit-fg-primary) focus:outline-none focus:border-(--crit-brand)"
+                      >
+                        <option value="admin" selected={member.role == :admin}>Admin</option>
+                        <option value="member" selected={member.role == :member}>Member</option>
+                      </select>
+                    </form>
+                  <% else %>
+                    <span class={[
+                      "inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full",
+                      if(member.role == :admin,
+                        do: "bg-(--crit-brand-bg) text-(--crit-brand)",
+                        else: "bg-(--crit-bg-elevated) text-(--crit-fg-muted)"
+                      )
+                    ]}>
+                      {Phoenix.Naming.humanize(member.role)}
+                    </span>
+                  <% end %>
+                </td>
+
+                <%!-- Joined --%>
+                <td class="px-4 py-3 text-[12px] text-(--crit-fg-secondary) max-sm:hidden">
+                  {Calendar.strftime(member.inserted_at, "%b %Y")}
+                </td>
+
+                <%!-- Actions --%>
+                <td class="pr-[18px] py-3 text-right">
+                  <%= if @is_admin and member.user.id != @current_user_id do %>
+                    <button
+                      type="button"
+                      phx-click="remove_member"
+                      phx-value-user_id={member.user.id}
+                      data-confirm={"Remove #{member.user.name || member.user.email} from this organization?"}
+                      class="text-[12px] font-medium text-(--crit-red) hover:underline opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand)"
+                    >
+                      Remove
+                    </button>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <%!-- Pending invites tab content --%>
+    <section :if={@tab == "pending"} role="tabpanel" class="mb-7">
+      <div
+        :if={@invites == []}
+        class="bg-(--crit-bg-card) border border-(--crit-border) rounded-xl p-8 text-center"
+      >
+        <p class="text-[14px] text-(--crit-fg-muted)">No pending invitations.</p>
+      </div>
+      <div
+        :if={@invites != []}
+        class="bg-(--crit-bg-card) border border-(--crit-border) rounded-xl overflow-hidden overflow-x-auto"
+      >
+        <table class="w-full text-[13px] min-w-[480px]">
+          <thead>
+            <tr class="border-b border-(--crit-border)">
+              <th class="text-left px-4 py-2.5 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider">
+                Email
+              </th>
+              <th class="text-left px-4 py-2.5 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider">
+                Role
+              </th>
+              <th class="text-left px-4 py-2.5 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider max-sm:hidden">
+                Invited by
+              </th>
+              <th class="text-left px-4 py-2.5 font-medium text-(--crit-fg-muted) text-[11px] uppercase tracking-wider">
+                Expires
+              </th>
+              <th class="text-right px-4 py-2.5">
+                <span class="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              :for={invite <- @invites}
+              class="border-b border-(--crit-border) last:border-b-0 hover:bg-(--crit-bg-elevated)"
+            >
+              <td class="px-4 py-3 text-(--crit-fg-primary) font-medium">
+                {invite.email}
+              </td>
+              <td class="px-4 py-3">
+                <span class={[
+                  "inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full",
+                  if(invite.role == :admin,
+                    do: "bg-(--crit-brand-bg) text-(--crit-brand)",
+                    else: "bg-(--crit-bg-elevated) text-(--crit-fg-muted)"
+                  )
+                ]}>
+                  {Phoenix.Naming.humanize(invite.role)}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-[12px] text-(--crit-fg-secondary) max-sm:hidden">
+                {invite.invited_by.name || invite.invited_by.email}
+              </td>
+              <td class="px-4 py-3 text-[12px] text-(--crit-fg-secondary)">
+                {CritWeb.Org.MembersLive.expires_label(invite)}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  type="button"
+                  phx-click="resend_invite"
+                  phx-value-id={invite.id}
+                  class="text-[12px] font-medium text-(--crit-fg-secondary) hover:text-(--crit-fg-primary) hover:underline mr-3 cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand)"
+                >
+                  Resend
+                </button>
+                <button
+                  type="button"
+                  phx-click="revoke_invite"
+                  phx-value-id={invite.id}
+                  data-confirm={"Revoke invite for #{invite.email}?"}
+                  class="text-[12px] font-medium text-(--crit-red) hover:underline cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand)"
+                >
+                  Revoke
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>

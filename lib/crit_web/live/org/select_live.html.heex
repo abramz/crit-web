@@ -1,0 +1,213 @@
+<Layouts.flash_group flash={@flash} />
+
+<div class="min-h-screen bg-(--crit-bg-page) text-(--crit-fg-primary) font-sans flex flex-col">
+  <Layouts.dashboard_header
+    current_scope={@current_scope}
+    show_overview_link={@selfhosted}
+    current_page={nil}
+    orgs={@orgs}
+  />
+
+  <div class="max-w-7xl mx-auto w-full px-8 my-10 max-sm:px-4">
+    <%!-- Page head --%>
+    <div class="flex items-end justify-between mb-7 gap-4 max-sm:flex-col max-sm:items-start">
+      <div>
+        <div class="text-[11px] font-mono font-medium uppercase tracking-[0.12em] text-(--crit-fg-muted) mb-2">
+          Organizations
+        </div>
+        <h1 class="text-[22px] font-bold text-(--crit-fg-primary) tracking-[-0.02em]">
+          Pick a workspace
+        </h1>
+        <p class="text-[13px] text-(--crit-fg-muted) mt-1">
+          <%= cond do %>
+            <% length(@invites) > 0 and length(@orgs) > 0 -> %>
+              You have {length(@invites)} {if length(@invites) == 1, do: "invite", else: "invites"} waiting and {length(
+                @orgs
+              )} {if length(@orgs) == 1, do: "organization", else: "organizations"}.
+            <% length(@invites) > 0 -> %>
+              You have {length(@invites)} pending {if length(@invites) == 1,
+                do: "invite",
+                else: "invites"}.
+            <% length(@orgs) > 0 -> %>
+              You have {length(@orgs)} {if length(@orgs) == 1,
+                do: "organization",
+                else: "organizations"}.
+            <% true -> %>
+              Create an organization or accept an invite to get started.
+          <% end %>
+        </p>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <.link
+          navigate={~p"/orgs/new"}
+          class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold bg-(--crit-brand-cta) text-(--crit-fg-on-brand) rounded-lg hover:bg-(--crit-brand-cta-hover) transition-all no-underline"
+        >
+          <.icon name="hero-plus-mini" class="size-[14px]" /> New organization
+        </.link>
+      </div>
+    </div>
+
+    <%!-- Pending invites --%>
+    <%= if @invites != [] do %>
+      <section class="mb-7">
+        <h2 class="text-[13px] font-semibold text-(--crit-fg-primary) mb-3 flex items-center gap-2">
+          Pending invites
+          <span class="inline-flex items-center px-1.5 py-px rounded-full text-[11px] font-medium bg-[rgba(255,158,100,0.15)] text-(--crit-orange)">
+            {length(@invites)}
+          </span>
+        </h2>
+        <div class="flex flex-col gap-2">
+          <div
+            :for={invite <- @invites}
+            class="bg-(--crit-bg-card) border border-(--crit-border) rounded-[10px] px-4 py-3 flex items-center gap-3 max-sm:flex-col max-sm:items-start"
+          >
+            <%!-- Org avatar --%>
+            <span class="w-8 h-8 rounded-lg bg-[rgba(86,211,100,0.18)] text-(--crit-green) inline-flex items-center justify-center text-[13px] font-semibold flex-shrink-0">
+              {String.first(invite.organization.name) |> String.upcase()}
+            </span>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold text-(--crit-fg-primary)">
+                {invite.organization.name}
+              </div>
+              <div class="text-[11px] text-(--crit-fg-muted) mt-0.5">
+                Invited by
+                <span class="text-(--crit-fg-secondary)">
+                  {invite.invited_by.name || invite.invited_by.email}
+                </span>
+                as
+                <span class={[
+                  "inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-medium ml-1 capitalize",
+                  if(invite.role == :admin,
+                    do: "bg-(--crit-brand-bg) text-(--crit-brand)",
+                    else: "bg-(--crit-bg-elevated) text-(--crit-fg-muted)"
+                  )
+                ]}>
+                  {invite.role}
+                </span>
+              </div>
+            </div>
+            <span class="text-[11px] text-(--crit-fg-muted) flex items-center gap-1 flex-shrink-0">
+              <.icon name="hero-clock-mini" class="size-[10px]" />
+              <% days_left =
+                max(
+                  0,
+                  Crit.Organizations.OrganizationInvite.ttl_days() -
+                    div(DateTime.diff(DateTime.utc_now(), invite.inserted_at, :second), 86400)
+                ) %> Expires in {days_left}d
+            </span>
+            <button
+              type="button"
+              phx-click="dismiss_invite"
+              phx-value-id={invite.id}
+              class="inline-flex items-center px-3 py-1.5 text-[12px] font-medium text-(--crit-fg-muted) hover:text-(--crit-fg-primary) border border-(--crit-border) bg-(--crit-bg-card) rounded-md hover:bg-(--crit-bg-elevated) transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand)"
+            >
+              Decline
+            </button>
+            <.form
+              for={%{}}
+              as={:invite}
+              action={~p"/invites/#{invite.id}/accept-direct"}
+              method="post"
+            >
+              <button
+                type="submit"
+                class="inline-flex items-center px-3 py-1.5 text-[12px] font-bold bg-(--crit-brand-cta) text-(--crit-fg-on-brand) rounded-lg hover:bg-(--crit-brand-cta-hover) transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-(--crit-brand) focus-visible:ring-offset-1"
+              >
+                Accept
+              </button>
+            </.form>
+          </div>
+        </div>
+      </section>
+    <% end %>
+
+    <%!-- Empty state --%>
+    <%= if @orgs == [] and @invites == [] do %>
+      <div class="text-center py-16 text-(--crit-fg-muted)">
+        <.icon name="hero-building-office-2" class="size-12 mx-auto mb-4 opacity-40" />
+        <p class="text-base font-medium text-(--crit-fg-secondary) mb-2">No organizations yet</p>
+        <p class="text-sm mb-6">Create one or accept a pending invite.</p>
+        <.link
+          navigate={~p"/orgs/new"}
+          class="text-sm text-(--crit-brand) no-underline hover:underline"
+        >
+          Create your first organization &rarr;
+        </.link>
+      </div>
+    <% end %>
+
+    <%!-- ═══════════════ ORG GRID ═══════════════ --%>
+    <%= if @orgs != [] do %>
+      <section>
+        <h2 class="text-[13px] font-semibold text-(--crit-fg-primary) mb-3">
+          Your organizations
+        </h2>
+        <div class="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+          <%!-- Org cards --%>
+          <.link
+            :for={org <- @orgs}
+            navigate={~p"/orgs/#{org.slug}"}
+            class={[
+              "bg-(--crit-bg-card) border rounded-[10px] p-[18px] flex flex-col gap-3.5 no-underline relative hover:border-(--crit-border-strong) transition-colors",
+              if(@current_scope.organization && @current_scope.organization.id == org.id,
+                do: "border-(--crit-brand) shadow-[inset_0_0_0_1px_var(--crit-brand)]",
+                else: "border-(--crit-border)"
+              )
+            ]}
+          >
+            <%!-- Active pill --%>
+            <%= if @current_scope.organization && @current_scope.organization.id == org.id do %>
+              <span class="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-(--crit-brand-bg) text-(--crit-brand)">
+                <span class="w-1.5 h-1.5 rounded-full bg-(--crit-brand)"></span> Active
+              </span>
+            <% end %>
+            <div class="flex gap-3 items-start">
+              <span class="w-9 h-9 rounded-[9px] bg-[rgba(122,162,247,0.18)] text-[#7aa2f7] inline-flex items-center justify-center text-[13px] font-semibold flex-shrink-0">
+                {String.first(org.name) |> String.upcase()}
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="text-[15px] font-semibold text-(--crit-fg-primary) tracking-[-0.01em]">
+                  {org.name}
+                </div>
+                <div class="text-[11px] font-mono text-(--crit-fg-muted) mt-0.5">{org.slug}</div>
+              </div>
+            </div>
+            <div class="flex gap-1.5 flex-wrap">
+              <span class={[
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium capitalize",
+                if(org.role == :admin,
+                  do: "bg-(--crit-brand-bg) text-(--crit-brand)",
+                  else:
+                    "bg-(--crit-bg-elevated) text-(--crit-fg-muted) border border-(--crit-border)"
+                )
+              ]}>
+                <.icon name="hero-shield-check-mini" class="size-[11px]" /> {org.role}
+              </span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-(--crit-bg-elevated) text-(--crit-fg-muted) border border-(--crit-border)">
+                <.icon name="hero-users-mini" class="size-[11px]" /> {org.member_count}
+              </span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-(--crit-bg-elevated) text-(--crit-fg-muted) border border-(--crit-border)">
+                <.icon name="hero-document-text-mini" class="size-[11px]" /> {org.review_count}
+              </span>
+            </div>
+            <div class="text-[12px] text-(--crit-fg-muted) flex items-center gap-1.5">
+              <.icon name="hero-clock-mini" class="size-[11px]" />
+              Created {Calendar.strftime(org.inserted_at, "%b %-d, %Y")}
+            </div>
+          </.link>
+
+          <%!-- New organization card --%>
+          <.link
+            navigate={~p"/orgs/new"}
+            class="bg-(--crit-bg-card) border border-dashed border-(--crit-border) rounded-[10px] p-[18px] flex flex-col gap-3 items-center justify-center text-center no-underline hover:border-(--crit-border-strong) transition-colors min-h-[140px]"
+          >
+            <span class="w-9 h-9 rounded-[9px] border border-dashed border-(--crit-border-strong) text-(--crit-fg-muted) inline-flex items-center justify-center">
+              <.icon name="hero-plus" class="size-4" />
+            </span>
+            <div class="text-[13px] font-medium text-(--crit-fg-secondary)">New organization</div>
+          </.link>
+        </div>
+      </section>
+    <% end %>
+  </div>
+</div>
