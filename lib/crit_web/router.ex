@@ -13,6 +13,7 @@ defmodule CritWeb.Router do
     plug CritWeb.Plugs.SecurityHeaders
     plug CritWeb.Plugs.RateLimit
     plug :fetch_current_scope_for_user
+    plug CritWeb.Plugs.TrustedProxyAuth
   end
 
   pipeline :api do
@@ -78,6 +79,7 @@ defmodule CritWeb.Router do
     get "/auth/cli/success", DeviceController, :success
 
     get "/r/:token/raw/*file_path", RawController, :show
+    get "/share-receiver", ShareReceiverController, :index
   end
 
   # Review page — visibility-driven noindex/referrer is set in the layout via
