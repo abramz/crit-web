@@ -137,7 +137,308 @@ defmodule CritWeb.PageController do
     }
   }
 
+  @modes_data %{
+    "plans-docs" => %{
+      label: "Plans & docs",
+      screenshot: "plan",
+      eyebrow: "Mode · plans & docs",
+      title: "Review the plan before the agent writes the code.",
+      lead:
+        "Pass crit a markdown file, a source file, a docs page. It renders in the browser with the same inline-comment surface you'd use on a GitHub PR.",
+      tags: [
+        "Markdown render",
+        "Syntax highlighting",
+        "Code-fence ranges",
+        "Mermaid diagrams",
+        "Per-branch isolation"
+      ],
+      steps: [
+        %{
+          h: "Agent writes a plan",
+          p:
+            "Tell your agent to draft a plan or spec. Run crit on the resulting file — the agent waits for your review."
+        },
+        %{
+          h: "Crit renders it",
+          p:
+            "Markdown rendered. Code fences syntax-highlighted. Mermaid diagrams drawn inline. Tables, lists, headings — all real."
+        },
+        %{
+          h: "You comment",
+          p:
+            "Click a line number to comment. Drag to select a range. Insert a suggestion to show the agent the exact replacement you want."
+        },
+        %{
+          h: "Hit Finish",
+          p:
+            "Comments are bundled into a structured prompt. Your agent picks them up, edits the file, and Crit reloads with a round-to-round diff."
+        }
+      ],
+      features: [
+        %{
+          h: "Markdown that doesn't lie",
+          p:
+            "Headings, tables, lists, blockquotes — all rendered. No more reading raw markdown to figure out the structure."
+        },
+        %{
+          h: "Suggestions, not paragraphs",
+          p:
+            "Select lines → Insert suggestion. The comment pre-fills with the original text. Edit to show the agent the exact replacement."
+        },
+        %{
+          h: "Round-to-round diff",
+          p:
+            "When the agent edits the file, Crit shows a split or unified diff. Your previous comments stay attached to the right lines so you can verify they were addressed."
+        },
+        %{
+          h: "Multiple files at once",
+          p:
+            "crit plan.md api-spec.md opens both in a single review. File tree on the left, comments per file, single Finish at the end."
+        },
+        %{
+          h: "Mermaid diagrams render",
+          p:
+            "Architecture diagrams in mermaid blocks draw inline. Comment on the diagram source like any other block."
+        },
+        %{
+          h: "Per-branch review state",
+          p:
+            "Switch git branches and Crit picks up where you left off on that branch. Review state lives outside your repo."
+        }
+      ]
+    },
+    "code" => %{
+      label: "Code",
+      screenshot: "diff",
+      eyebrow: "Mode · code",
+      title: "Review the diff before you merge.",
+      lead:
+        "Point crit at a branch or PR. It auto-detects changed files, renders diffs with syntax highlighting, and lets you comment on any line — just like a PR review, but local and instant.",
+      tags: [
+        "Split / unified diff",
+        "File tree",
+        "Comment counts",
+        "Round-to-round diff",
+        "PR sync"
+      ],
+      steps: [
+        %{
+          h: "Agent makes changes",
+          p:
+            "Your agent edits files across a branch. Run crit (no args) or crit --pr <number> to review."
+        },
+        %{
+          h: "Crit shows the diff",
+          p:
+            "Changed files in a tree with status badges and comment counts. Split or unified view. Colored additions and deletions."
+        },
+        %{
+          h: "You comment on lines",
+          p:
+            "Same inline commenting as file mode — click, drag, type. Comments attach to specific diff lines."
+        },
+        %{
+          h: "Hit Finish",
+          p:
+            "Structured feedback goes to the agent. It makes edits, and Crit shows what changed between rounds."
+        }
+      ],
+      features: [
+        %{
+          h: "Auto file detection",
+          p:
+            "No arguments needed — crit detects changed files from your branch's diff against the base."
+        },
+        %{
+          h: "Split and unified views",
+          p:
+            "Toggle between side-by-side and inline diff with one click. Preference persists across rounds."
+        },
+        %{
+          h: "Round-to-round diff",
+          p:
+            "See exactly what your agent changed between review rounds. Previous comments stay visible on the updated lines."
+        },
+        %{
+          h: "PR sync",
+          p:
+            "crit push sends local comments to a GitHub PR. crit pull fetches PR comments back. Review locally, sync when ready."
+        },
+        %{
+          h: "File tree with status",
+          p:
+            "Added, modified, deleted — color-coded badges. Comment counts per file so you know what's been reviewed."
+        },
+        %{
+          h: "Expandable context",
+          p:
+            "Collapsed unchanged lines expand on click. See the full file without leaving the diff view."
+        }
+      ]
+    },
+    "live" => %{
+      label: "Live",
+      screenshot: "live",
+      eyebrow: "Mode · live",
+      title: "Review the running app, not a screenshot.",
+      lead:
+        "Crit reverse-proxies your dev server into an iframe. Click any DOM element to pin a comment to it. Your agent reads the feedback and iterates — the page reloads live.",
+      tags: [
+        "Click-to-pin DOM",
+        "Selector anchoring",
+        "Live reload",
+        "Round comparisons"
+      ],
+      steps: [
+        %{
+          h: "Agent builds a page",
+          p:
+            "Your agent writes frontend code and starts a dev server. /crit launches crit in live mode pointed at localhost."
+        },
+        %{
+          h: "Crit proxies the page",
+          p:
+            "Your running app appears inside Crit's review surface. It's the real page — interactive, scrollable, live."
+        },
+        %{
+          h: "You click elements to comment",
+          p:
+            "Click any DOM element to pin a comment. Crit anchors it by CSS selector so it survives minor layout changes."
+        },
+        %{
+          h: "Hit Finish",
+          p:
+            "The agent gets element-specific feedback. It edits the code, the dev server reloads, and you review the updated page."
+        }
+      ],
+      features: [
+        %{
+          h: "Click-to-pin DOM",
+          p:
+            "Click any element in the page to start a comment. Crit highlights the element and generates a stable CSS selector as the anchor."
+        },
+        %{
+          h: "Selector anchoring",
+          p:
+            "Comments are anchored by CSS selector, not coordinates. Minor layout shifts don't break your feedback."
+        },
+        %{
+          h: "Round comparisons",
+          p:
+            "See how the page changed between rounds. Previous comments stay attached to their elements across reloads."
+        },
+        %{
+          h: "Works with any dev server",
+          p:
+            "Vite, Next.js, Phoenix, Rails — anything serving HTTP on localhost. Crit proxies it transparently."
+        },
+        %{
+          h: "No browser extension needed",
+          p:
+            "Pure reverse proxy approach. No extension to install — Crit injects its script through the proxy so your app code stays untouched."
+        }
+      ]
+    },
+    "preview" => %{
+      label: "Preview",
+      screenshot: "preview",
+      eyebrow: "Mode · preview",
+      title: "Review the HTML your agent generated.",
+      lead:
+        "Your agent produced a landing page, a dashboard, or a mockup as a static HTML file. Crit renders it in a browser and lets you click any element to leave a comment — no dev server, no build step.",
+      tags: [
+        "Static HTML iframe",
+        "Click-to-comment",
+        "Asset siblings served",
+        "No dev server",
+        "Round comparisons"
+      ],
+      steps: [
+        %{
+          h: "Agent generates HTML",
+          p:
+            "Your agent produces an HTML file — a landing page, a dashboard, a mockup. Run crit on the file to open it in preview mode."
+        },
+        %{
+          h: "Crit renders the file",
+          p:
+            "The HTML renders in an iframe with sibling assets (CSS, images, JS) served from the same directory. It looks exactly as intended."
+        },
+        %{
+          h: "You click elements to comment",
+          p:
+            "Click any element in the page to pin a comment to it. Crit anchors it by CSS selector so it survives when the agent regenerates the file."
+        },
+        %{
+          h: "Hit Finish",
+          p:
+            "The agent gets element-specific feedback, regenerates the file, and Crit reloads with the updated preview."
+        }
+      ],
+      features: [
+        %{
+          h: "Rendered, not raw",
+          p:
+            "The HTML file renders in an iframe — you see the page as a user would, not the source code. Crit serves sibling CSS, images, and JS automatically."
+        },
+        %{
+          h: "Click any element to comment",
+          p:
+            "Click a button, a heading, an image — Crit highlights it and anchors your comment by CSS selector. Minor layout changes don't break your feedback."
+        },
+        %{
+          h: "No server, no build step",
+          p:
+            "Point crit at an HTML file and it works. No dev server to start, no dependencies to install, no build pipeline."
+        },
+        %{
+          h: "Round comparisons",
+          p:
+            "When the agent regenerates the HTML, Crit shows what changed. Your previous comments stay attached to their elements."
+        },
+        %{
+          h: "Works with any HTML artifact",
+          p:
+            "Landing pages, email templates, generated dashboards, design mockups — anything self-contained as HTML."
+        }
+      ]
+    }
+  }
+
   @feature_order ~w(inline-comments split-unified-diff ai-review-loop vim-keybindings share-reviews syntax-highlighting mermaid-diagrams)
+
+  @faq [
+    %{
+      q: "Why this over just asking the agent to review?",
+      a:
+        "Because the agent reviewing its own output is the thing you're trying to escape. Crit puts you back in the loop. You see the lines, you point at them, the agent responds to specific feedback — not your fuzzy recollection of what you wanted."
+    },
+    %{
+      q: "Why this over a /review slash command?",
+      a:
+        "Slash commands review once and dump prose. Crit gives you a persistent surface: comments stay attached to lines across rounds, round-to-round diffs show what actually changed, and unresolved threads stay unresolved until you say so."
+    },
+    %{
+      q: "Why a browser at all? I'm already in the terminal.",
+      a:
+        "Because line-precise feedback on a 600-line plan is miserable in a terminal. Markdown rendering. Syntax highlighting. Click-and-drag selection. Same shape as a GitHub PR, no GitHub round-trip."
+    },
+    %{
+      q: "Why not just write a better prompt up front?",
+      a:
+        "You will. You'll still want to push back on the result. The first prompt rarely lands; the second one — informed by what the agent actually produced — usually does."
+    },
+    %{
+      q: "Does anything leave my machine?",
+      a:
+        "No, unless you click Share. Server binds to 127.0.0.1. Zero telemetry. Sharing uploads explicitly, to crit.md or your own self-hosted crit-web."
+    },
+    %{
+      q: "Does it work with my agent?",
+      a:
+        "If your agent can read a file and execute a shell command, yes. Crit ships first-class plugins for Claude Code, Cursor, Copilot, Codex, OpenCode, Aider, Cline, Windsurf, Gemini and Qwen."
+    }
+  ]
 
   @testimonials [
     %{
@@ -194,11 +495,12 @@ defmodule CritWeb.PageController do
       render(conn, :home,
         demo_token: Application.get_env(:crit, :demo_review_token),
         testimonials: @testimonials,
+        faq: @faq,
         stats: Crit.Statistics.totals(),
         canonical_url: canonical_url(conn),
-        page_title: "Crit - Your feedback loop with the agent",
+        page_title: "Crit - Point at the line. Tell the agent.",
         meta_description:
-          "Your feedback loop with the agent. Review plans and code changes with inline comments, multi-round diffs, and structured output any AI coding agent can consume. Single binary, works locally.",
+          "Review your AI agent's code changes in a browser with inline comments and round-to-round diffs. Comment on specific lines, the agent fixes them. Single binary, works locally, any agent.",
         json_ld: %{
           "@context" => "https://schema.org",
           "@type" => "SoftwareApplication",
@@ -206,7 +508,7 @@ defmodule CritWeb.PageController do
           "applicationCategory" => "DeveloperApplication",
           "operatingSystem" => "macOS, Linux, Windows",
           "description" =>
-            "Your feedback loop with the agent. Review plans and code changes with inline comments, multi-round diffs, and structured output for any AI coding agent.",
+            "Review your AI agent's code changes in a browser with inline comments and round-to-round diffs. Comment on specific lines, the agent fixes them.",
           "url" => "https://crit.md",
           "offers" => %{
             "@type" => "Offer",
@@ -275,12 +577,63 @@ defmodule CritWeb.PageController do
     end
   end
 
+  def build_integration(conn, _params) do
+    render(conn, :build_integration,
+      canonical_url: canonical_url(conn),
+      page_title: "Build Your Own Integration - Crit",
+      meta_description:
+        "Create a Crit integration for any AI coding agent. Learn the protocol, file format, and slash command patterns.",
+      json_ld: %{
+        "@context" => "https://schema.org",
+        "@type" => "BreadcrumbList",
+        "itemListElement" => [
+          %{
+            "@type" => "ListItem",
+            "position" => 1,
+            "name" => "Home",
+            "item" => "https://crit.md/"
+          },
+          %{
+            "@type" => "ListItem",
+            "position" => 2,
+            "name" => "Integrations",
+            "item" => "https://crit.md/integrations"
+          },
+          %{
+            "@type" => "ListItem",
+            "position" => 3,
+            "name" => "Build Your Own",
+            "item" => "https://crit.md/integrations/build-your-own"
+          }
+        ]
+      }
+    )
+  end
+
   def integrations(conn, _params) do
     render(conn, :integrations,
       canonical_url: canonical_url(conn),
       page_title: "Integrations - Crit",
       meta_description:
-        "Set up Crit with Claude Code, Cursor, GitHub Copilot, Windsurf, Aider, or Cline. Drop-in config files for each agent."
+        "Set up Crit with Claude Code, Cursor, GitHub Copilot, Windsurf, Aider, or Cline. Drop-in config files for each agent.",
+      json_ld: %{
+        "@context" => "https://schema.org",
+        "@type" => "BreadcrumbList",
+        "itemListElement" => [
+          %{
+            "@type" => "ListItem",
+            "position" => 1,
+            "name" => "Home",
+            "item" => "https://crit.md/"
+          },
+          %{
+            "@type" => "ListItem",
+            "position" => 2,
+            "name" => "Integrations",
+            "item" => "https://crit.md/integrations"
+          }
+        ]
+      }
     )
   end
 
@@ -291,7 +644,31 @@ defmodule CritWeb.PageController do
           tool: tool,
           canonical_url: canonical_url(conn),
           page_title: tool.page_title,
-          meta_description: tool.meta
+          meta_description: tool.meta,
+          json_ld: %{
+            "@context" => "https://schema.org",
+            "@type" => "BreadcrumbList",
+            "itemListElement" => [
+              %{
+                "@type" => "ListItem",
+                "position" => 1,
+                "name" => "Home",
+                "item" => "https://crit.md/"
+              },
+              %{
+                "@type" => "ListItem",
+                "position" => 2,
+                "name" => "Integrations",
+                "item" => "https://crit.md/integrations"
+              },
+              %{
+                "@type" => "ListItem",
+                "position" => 3,
+                "name" => tool.name,
+                "item" => "https://crit.md/integrations/#{tool_id}"
+              }
+            ]
+          }
         )
 
       :error ->
@@ -338,6 +715,43 @@ defmodule CritWeb.PageController do
     )
   end
 
+  def mode(conn, %{"mode" => slug}) do
+    case Map.fetch(@modes_data, slug) do
+      {:ok, mode} ->
+        render(conn, :mode,
+          mode: mode,
+          canonical_url: canonical_url(conn),
+          page_title: "#{mode.label} Mode - Crit",
+          meta_description: mode.lead,
+          og_image: "https://crit.md/images/screenshots/#{mode.screenshot}-dark@2x.png",
+          json_ld: %{
+            "@context" => "https://schema.org",
+            "@type" => "BreadcrumbList",
+            "itemListElement" => [
+              %{
+                "@type" => "ListItem",
+                "position" => 1,
+                "name" => "Home",
+                "item" => "https://crit.md/"
+              },
+              %{
+                "@type" => "ListItem",
+                "position" => 2,
+                "name" => "#{mode.label} Mode",
+                "item" => "https://crit.md/modes/#{slug}"
+              }
+            ]
+          }
+        )
+
+      :error ->
+        conn
+        |> put_status(:not_found)
+        |> put_view(CritWeb.ErrorHTML)
+        |> render(:"404")
+    end
+  end
+
   def changelog(conn, _params) do
     releases = Crit.Changelog.list_releases()
     cli_releases = Enum.filter(releases, &(&1.source == :cli))
@@ -380,6 +794,11 @@ defmodule CritWeb.PageController do
     {"/integrations/windsurf", "monthly", "0.8"},
     {"/integrations/cline", "monthly", "0.8"},
     {"/integrations/aider", "monthly", "0.8"},
+    {"/integrations/build-your-own", "monthly", "0.7"},
+    {"/modes/plans-docs", "monthly", "0.8"},
+    {"/modes/code", "monthly", "0.8"},
+    {"/modes/live", "monthly", "0.8"},
+    {"/modes/preview", "monthly", "0.8"},
     {"/getting-started", "monthly", "0.9"},
     {"/self-hosting", "monthly", "0.7"},
     {"/changelog", "daily", "0.7"},

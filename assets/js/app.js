@@ -244,11 +244,13 @@ document.addEventListener("click", e => {
 // and reveals the panel referenced by data-target, hiding sibling panels.
 // Sibling tabs/panels are scoped by the shared class (install-* / agent-*).
 function activateTab(tab, tabClass, panelClass) {
-  document.querySelectorAll(`.${tabClass}`).forEach(t => {
+  const section = tab.closest("section") || tab.closest("div.max-w-md") || tab.parentElement?.parentElement
+  const scope = section || document
+  scope.querySelectorAll(`.${tabClass}`).forEach(t => {
     t.classList.remove("border-(--crit-brand)", "text-(--crit-brand)")
     t.classList.add("border-transparent", "text-(--crit-fg-muted)")
   })
-  document.querySelectorAll(`.${panelClass}`).forEach(p => p.classList.add("hidden"))
+  scope.querySelectorAll(`.${panelClass}`).forEach(p => p.classList.add("hidden"))
   tab.classList.add("border-(--crit-brand)", "text-(--crit-brand)")
   tab.classList.remove("border-transparent", "text-(--crit-fg-muted)")
   const panel = document.getElementById(tab.dataset.target)
@@ -267,23 +269,16 @@ document.addEventListener("click", e => {
   }
 })
 
-// Home page: YouTube lite facade — load iframe on click
-const ytFacade = document.getElementById("yt-facade")
-if (ytFacade) {
-  const activate = () => {
-    const iframe = document.createElement("iframe")
-    iframe.src = "https://www.youtube.com/embed/LHwfdvePf5A?autoplay=1"
-    iframe.title = "Crit demo"
-    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    iframe.allowFullscreen = true
-    iframe.className = "absolute inset-0 w-full h-full"
-    iframe.style.border = "0"
-    ytFacade.replaceChildren(iframe)
-    ytFacade.classList.remove("cursor-pointer", "group")
+// Home page: close video modal on Escape
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("video-modal")
+    if (modal && !modal.hidden) {
+      modal.hidden = true
+      document.getElementById("video-iframe").src = ""
+    }
   }
-  ytFacade.addEventListener("click", activate)
-  ytFacade.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate() }})
-}
+})
 
 // Home page: testimonials scroll-triggered reveal.
 // Cards start at opacity-0/translate-y-4 (Tailwind) and the data-revealed

@@ -8,6 +8,106 @@ defmodule CritWeb.PageHTML do
 
   embed_templates "page_html/*"
 
+  @modes [
+    %{
+      slug: "plans-docs",
+      label: "Plans & docs",
+      nav_label: "Review plans & docs",
+      cmd: "files / markdown",
+      screenshot: "plan",
+      blurb:
+        "Your agent drafted a 300-line plan. In the terminal it's a wall of markdown. Crit renders it in the browser — comment on the section that's wrong, not the whole document.",
+      bullets: ["Markdown render", "Per-line comments", "Code-fence ranges", "Mermaid diagrams"]
+    },
+    %{
+      slug: "code",
+      label: "Code",
+      nav_label: "Review code diffs",
+      cmd: "branch / pr changes",
+      screenshot: "diff",
+      blurb:
+        "Your agent touched 14 files across your branch. Crit auto-detects the changes, shows syntax-highlighted diffs, and lets you comment on any line — like a PR review, but instant and local.",
+      bullets: ["Syntax highlighting", "Stacked PRs", "Git, jj, sapling"]
+    },
+    %{
+      slug: "live",
+      label: "Live",
+      nav_label: "Review running apps",
+      cmd: "running app / dev server",
+      screenshot: "live",
+      blurb:
+        "Your agent built a frontend and it's running on localhost. Crit proxies the page into a review surface — click the button that's misaligned, pin a comment to it.",
+      bullets: ["Comment on DOM", "Automatic reload", "Interactive browser"]
+    },
+    %{
+      slug: "preview",
+      label: "Preview",
+      nav_label: "Review HTML artifacts",
+      cmd: "static html artifact",
+      screenshot: "preview",
+      blurb:
+        "Your agent generated a landing page as a static HTML file. Crit renders it in an iframe so you can click elements and comment.",
+      bullets: [
+        "Static HTML iframe",
+        "Asset siblings served",
+        "Pin to elements",
+        "No dev server needed"
+      ]
+    }
+  ]
+
+  def modes, do: @modes
+
+  slot :inner_block, required: true
+  attr :url, :string, required: true
+  attr :tag, :string, default: nil
+
+  def browser_chrome(assigns) do
+    ~H"""
+    <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-xl overflow-hidden shadow-lg relative">
+      <div class="flex items-center px-4 py-3 bg-(--crit-bg-elevated) border-b border-(--crit-border)">
+        <div class="flex gap-2">
+          <span class="w-3 h-3 rounded-full" style="background: #f7768e;"></span>
+          <span class="w-3 h-3 rounded-full" style="background: #e0af68;"></span>
+          <span class="w-3 h-3 rounded-full" style="background: #56d364;"></span>
+        </div>
+        <div class="flex-1 flex justify-center px-4">
+          <div class="bg-(--crit-bg-card) border border-(--crit-border) rounded-full px-4 py-1 font-mono text-xs text-(--crit-fg-muted) truncate max-w-[90%]">
+            {@url}
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <span class="w-1 h-1 rounded-full bg-(--crit-fg-muted)"></span>
+          <span class="w-1 h-1 rounded-full bg-(--crit-fg-muted)"></span>
+          <span class="w-1 h-1 rounded-full bg-(--crit-fg-muted)"></span>
+        </div>
+      </div>
+      <div>
+        {render_slot(@inner_block)}
+      </div>
+      <span
+        :if={@tag}
+        class="absolute top-12 right-3 font-mono text-xs uppercase bg-(--crit-bg-elevated) text-(--crit-fg-muted) px-2 py-0.5 rounded"
+      >
+        {@tag}
+      </span>
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true
+
+  def browser_chrome_placeholder(assigns) do
+    ~H"""
+    <div
+      class="flex items-center justify-center aspect-video"
+      style="background: repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(128,128,128,0.07) 10px, rgba(128,128,128,0.07) 20px);"
+    >
+      <span class="font-mono text-sm text-(--crit-fg-muted)">{@label}</span>
+    </div>
+    """
+  end
+
   @doc "Converts `backtick` spans in plain text to styled <code> elements."
   def inline_code(text) do
     Regex.split(~r/`([^`]+)`/, text, include_captures: true)
@@ -45,100 +145,119 @@ defmodule CritWeb.PageHTML do
     end
   end
 
+  attr :id, :string, default: "install-section"
+
+  def install_section(assigns) do
+    ~H"""
+    <section id="install" class="py-16 max-sm:py-10">
+      <div class="max-w-[880px] mx-auto px-10 max-sm:px-4 w-full">
+        <div class="text-center mb-10 max-sm:mb-8">
+          <h2 class="text-5xl font-extrabold tracking-tight mb-4 max-sm:text-4xl">
+            30-second install<span class="text-(--crit-brand)">.</span>
+          </h2>
+          <p class="text-lg text-(--crit-fg-secondary) max-sm:text-base">
+            Single binary. No account, no config, no dependencies.
+          </p>
+        </div>
+
+        <.install_widget id={@id} />
+      </div>
+    </section>
+    """
+  end
+
+  attr :id, :string, default: "install"
+
   def install_widget(assigns) do
     ~H"""
     <div class="flex gap-0 border-b border-(--crit-border)">
       <button
         class="install-tab font-mono text-sm px-4 py-2 -mb-px border-b-2 border-(--crit-brand) text-(--crit-brand) transition-colors cursor-pointer bg-transparent"
-        data-target="tab-brew"
+        data-target={"#{@id}-brew"}
       >
         Homebrew
       </button>
       <button
         class="install-tab font-mono text-sm px-4 py-2 -mb-px border-b-2 border-transparent text-(--crit-fg-muted) hover:text-(--crit-fg-secondary) transition-colors cursor-pointer bg-transparent"
-        data-target="tab-go"
+        data-target={"#{@id}-go"}
       >
         Go
       </button>
       <button
         class="install-tab font-mono text-sm px-4 py-2 -mb-px border-b-2 border-transparent text-(--crit-fg-muted) hover:text-(--crit-fg-secondary) transition-colors cursor-pointer bg-transparent"
-        data-target="tab-nix"
+        data-target={"#{@id}-nix"}
       >
         Nix
       </button>
       <button
         class="install-tab font-mono text-sm px-4 py-2 -mb-px border-b-2 border-transparent text-(--crit-fg-muted) hover:text-(--crit-fg-secondary) transition-colors cursor-pointer bg-transparent"
-        data-target="tab-windows"
+        data-target={"#{@id}-windows"}
       >
         Windows
       </button>
     </div>
 
     <div
-      id="tab-brew"
+      id={"#{@id}-brew"}
       class="install-panel border border-t-0 border-(--crit-border) rounded-b-md overflow-hidden"
     >
-      <div class="flex items-center bg-(--crit-code-bg)">
+      <div
+        class="copy-btn flex items-center bg-(--crit-code-bg) cursor-pointer text-(--crit-fg-muted)"
+        data-copy="brew install crit"
+      >
         <pre class="flex-1 font-mono text-sm text-(--crit-fg-primary) m-0 px-5 py-3.5 overflow-x-auto"><span class="text-(--crit-fg-muted) select-none">$ </span>brew install crit</pre>
-        <button
-          class="copy-btn shrink-0 p-3 cursor-pointer text-(--crit-fg-muted) hover:text-(--crit-fg-primary) transition-colors"
-          aria-label="Copy to clipboard"
-          data-copy="brew install crit"
-        >
+        <div class="shrink-0 p-3">
           <.icon name="hero-clipboard" class="size-4 icon-default" />
           <.icon name="hero-clipboard-document-check" class="size-4 icon-copied hidden" />
-        </button>
+        </div>
       </div>
     </div>
 
     <div
-      id="tab-go"
+      id={"#{@id}-go"}
       class="install-panel hidden border border-t-0 border-(--crit-border) rounded-b-md overflow-hidden"
     >
-      <div class="flex items-center bg-(--crit-code-bg)">
+      <div
+        class="copy-btn flex items-center bg-(--crit-code-bg) cursor-pointer text-(--crit-fg-muted)"
+        data-copy="go install github.com/tomasz-tomczyk/crit@latest"
+      >
         <pre class="flex-1 font-mono text-sm text-(--crit-fg-primary) m-0 px-5 py-3.5 overflow-x-auto"><span class="text-(--crit-fg-muted) select-none">$ </span>go install github.com/tomasz-tomczyk/crit@latest</pre>
-        <button
-          class="copy-btn shrink-0 p-3 cursor-pointer text-(--crit-fg-muted) hover:text-(--crit-fg-primary) transition-colors"
-          aria-label="Copy to clipboard"
-          data-copy="go install github.com/tomasz-tomczyk/crit@latest"
-        >
+        <div class="shrink-0 p-3">
           <.icon name="hero-clipboard" class="size-4 icon-default" />
           <.icon name="hero-clipboard-document-check" class="size-4 icon-copied hidden" />
-        </button>
+        </div>
       </div>
     </div>
 
     <div
-      id="tab-nix"
+      id={"#{@id}-nix"}
       class="install-panel hidden border border-t-0 border-(--crit-border) rounded-b-md overflow-hidden"
     >
-      <div class="flex items-center bg-(--crit-code-bg)">
+      <div
+        class="copy-btn flex items-center bg-(--crit-code-bg) cursor-pointer text-(--crit-fg-muted)"
+        data-copy="nix profile install github:tomasz-tomczyk/crit"
+      >
         <pre class="flex-1 font-mono text-sm text-(--crit-fg-primary) m-0 px-5 py-3.5 overflow-x-auto"><span class="text-(--crit-fg-muted) select-none">$ </span>nix profile install github:tomasz-tomczyk/crit</pre>
-        <button
-          class="copy-btn shrink-0 p-3 cursor-pointer text-(--crit-fg-muted) hover:text-(--crit-fg-primary) transition-colors"
-          aria-label="Copy to clipboard"
-          data-copy="nix profile install github:tomasz-tomczyk/crit"
-        >
+        <div class="shrink-0 p-3">
           <.icon name="hero-clipboard" class="size-4 icon-default" />
           <.icon name="hero-clipboard-document-check" class="size-4 icon-copied hidden" />
-        </button>
+        </div>
       </div>
     </div>
 
     <div
-      id="tab-windows"
+      id={"#{@id}-windows"}
       class="install-panel hidden border border-t-0 border-(--crit-border) rounded-b-md overflow-hidden"
     >
-      <div class="flex items-center bg-(--crit-code-bg)">
+      <div
+        class="copy-btn flex items-center bg-(--crit-code-bg) cursor-pointer text-(--crit-fg-muted)"
+        data-copy="iwr https://github.com/tomasz-tomczyk/crit/releases/latest/download/crit-windows-amd64.exe -OutFile crit.exe"
+      >
         <pre class="flex-1 font-mono text-sm text-(--crit-fg-primary) m-0 px-5 py-3.5 overflow-x-auto"><span class="text-(--crit-fg-muted) select-none">PS&gt; </span>iwr https://github.com/tomasz-tomczyk/crit/releases/latest/download/crit-windows-amd64.exe -OutFile crit.exe</pre>
-        <button
-          class="copy-btn shrink-0 p-3 cursor-pointer text-(--crit-fg-muted) hover:text-(--crit-fg-primary) transition-colors"
-          aria-label="Copy to clipboard"
-          data-copy="iwr https://github.com/tomasz-tomczyk/crit/releases/latest/download/crit-windows-amd64.exe -OutFile crit.exe"
-        >
+        <div class="shrink-0 p-3">
           <.icon name="hero-clipboard" class="size-4 icon-default" />
           <.icon name="hero-clipboard-document-check" class="size-4 icon-copied hidden" />
-        </button>
+        </div>
       </div>
       <p class="text-xs text-(--crit-fg-muted) px-5 py-2.5 border-t border-(--crit-border)">
         Then move <code class="font-mono">crit.exe</code>
@@ -146,23 +265,6 @@ defmodule CritWeb.PageHTML do
         <code class="font-mono">amd64</code>
         for <code class="font-mono">arm64</code>. WSL users: use the Linux binary instead.
       </p>
-    </div>
-
-    <div class="mt-3 flex items-center gap-4">
-      <div class="font-mono text-xs text-(--crit-fg-muted) w-[70px] shrink-0 text-right">
-        then run
-      </div>
-      <div class="flex-1 flex items-center border border-(--crit-border) rounded-md overflow-hidden bg-(--crit-code-bg)">
-        <pre class="flex-1 font-mono text-sm text-(--crit-fg-primary) m-0 px-5 py-3.5 overflow-x-auto"><span class="text-(--crit-fg-muted) select-none">$ </span>crit<span class="text-(--crit-fg-muted)"> or </span>crit plan.md</pre>
-        <button
-          class="copy-btn shrink-0 p-3 cursor-pointer text-(--crit-fg-muted) hover:text-(--crit-fg-primary) transition-colors"
-          aria-label="Copy to clipboard"
-          data-copy="crit"
-        >
-          <.icon name="hero-clipboard" class="size-4 icon-default" />
-          <.icon name="hero-clipboard-document-check" class="size-4 icon-copied hidden" />
-        </button>
-      </div>
     </div>
 
     <p class="text-sm text-(--crit-fg-secondary) mt-3">
@@ -364,11 +466,14 @@ defmodule CritWeb.PageHTML do
       </div>
     </div>
 
-    <p class="text-sm text-(--crit-fg-muted) mt-3">
+    <div class="flex gap-6 text-sm text-(--crit-fg-muted) mt-3">
       <a href="/integrations" class="crit-link">
         Full setup docs &rarr;
       </a>
-    </p>
+      <a href="/integrations/build-your-own" class="crit-link">
+        Build your own &rarr;
+      </a>
+    </div>
     """
   end
 end

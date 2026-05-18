@@ -52,12 +52,14 @@ defmodule CritWeb.Router do
     get "/features", PageController, :features
     get "/features/:slug", PageController, :feature
     get "/integrations", PageController, :integrations
+    get "/integrations/build-your-own", PageController, :build_integration
     get "/integrations/:tool", PageController, :integration
     get "/terms", PageController, :terms
     get "/privacy", PageController, :privacy
     get "/getting-started", PageController, :getting_started
     get "/self-hosting", PageController, :self_hosting
     get "/changelog", PageController, :changelog
+    get "/modes/:mode", PageController, :mode
     get "/sitemap.xml", PageController, :sitemap_xml
     get "/robots.txt", PageController, :robots_txt
 

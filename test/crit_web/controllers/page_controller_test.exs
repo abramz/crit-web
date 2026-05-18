@@ -3,7 +3,12 @@ defmodule CritWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Your feedback loop"
+    assert html_response(conn, 200) =~ "Point at the line."
+  end
+
+  test "GET /integrations/build-your-own", %{conn: conn} do
+    conn = get(conn, ~p"/integrations/build-your-own")
+    assert html_response(conn, 200) =~ "Build Your Own"
   end
 
   test "GET /terms", %{conn: conn} do
@@ -21,13 +26,12 @@ defmodule CritWeb.PageControllerTest do
     assert html_response(conn, 200) =~ "Self-Hosting"
   end
 
-  test "GET / shows platform stats", %{conn: conn} do
+  test "GET / shows homepage sections", %{conn: conn} do
     conn = get(conn, ~p"/")
     html = html_response(conn, 200)
-    assert html =~ "Shared to"
-    assert html =~ "shared reviews"
-    assert html =~ "inline comments"
-    assert html =~ "lines of code"
+    assert html =~ "Point at the line."
+    assert html =~ "Every agent reads files"
+    assert html =~ "Frequently asked questions"
   end
 
   describe "GET /integrations" do
@@ -71,6 +75,24 @@ defmodule CritWeb.PageControllerTest do
       body = response(conn, 404)
       assert body =~ "This page was"
       assert body =~ "not found"
+    end
+  end
+
+  describe "GET /modes/:mode" do
+    for slug <- ~w(plans-docs code live preview) do
+      @slug slug
+
+      test "renders the #{slug} mode page", %{conn: conn} do
+        conn = get(conn, "/modes/#{@slug}")
+        html = html_response(conn, 200)
+        assert html =~ "How it works."
+        assert html =~ "What you get."
+      end
+    end
+
+    test "returns 404 for an unknown mode", %{conn: conn} do
+      conn = get(conn, "/modes/does-not-exist")
+      assert response(conn, 404) =~ "not found"
     end
   end
 end
