@@ -876,9 +876,11 @@ body.visual-mode .line-block.focused {
   align-items: flex-start;
   justify-content: flex-end;
 }
-.line-gutter:hover .line-add { display: flex; }
+@media (pointer: fine) {
+  .line-gutter:hover .line-add { display: flex; }
+  body.dragging .line-block.drag-endpoint .line-gutter .line-add { display: flex; }
+}
 body.dragging { user-select: none; cursor: grabbing; }
-body.dragging .line-block.drag-endpoint .line-gutter .line-add { display: flex; }
 /* Document-path comment gutter: overlay column between line numbers and content */
 .line-gutter > .line-comment-gutter {
   position: absolute;
@@ -1447,9 +1449,11 @@ body.dragging .line-block.drag-endpoint .line-gutter .line-add { display: flex; 
 .line-comment-gutter.diff-no-comment {
   cursor: default;
 }
-.line-comment-gutter.diff-no-comment:hover .line-add {
-  opacity: 0;
-  pointer-events: none;
+@media (pointer: fine) {
+  .line-comment-gutter.diff-no-comment:hover .line-add {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 .diff-view .line-block.diff-added .line-content {
   background: var(--crit-diff-add-bg);
@@ -2599,11 +2603,21 @@ body.dragging .line-block.drag-endpoint .line-gutter .line-add { display: flex; 
   font-weight: 500;
   color: var(--crit-editor-fg);
   flex: 1;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
 }
-.file-header-name .dir { color: var(--crit-editor-fg-muted); }
+.file-header-name .dir { color: var(--crit-editor-fg-muted); flex-shrink: 2; }
+.file-header-name .filename { flex-shrink: 1; }
+.file-header-name .dir,
+.file-header-name .filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 
 .file-header-badge {
   font-size: 10px;
@@ -3669,5 +3683,189 @@ body.sidebar-resizing * {
 }
 .tree-conversation-row.active .tree-conversation-badge {
   color: var(--crit-brand);
+}
+
+/* ===== Mobile / Touch ===== */
+
+/* Hidden on desktop; shown only inside the 768px breakpoint below */
+.mobile-file-picker-bar { display: none; }
+
+@media (max-width: 768px) {
+  .tree-panel { display: none !important; }
+  .sidebar-resize-handle { display: none !important; }
+  .comments-panel { display: none !important; }
+  .crit-diff-mode-toggle { display: none !important; }
+
+  /* Compact review meta: hide less-essential items to save vertical space */
+  .crit-review-meta-inner { padding: 8px 14px; }
+  .crit-vis-badge,
+  .crit-vis-status,
+  .crit-delete-btn,
+  .crit-round-diff-btn { display: none; }
+
+  /* Chrome on mobile computes viewport width from getBoundingClientRect() of
+     all descendants, including those inside overflow:clip containers. A
+     wrapping inline <span> (e.g. hljs-string) has a bounding rect that is
+     the union of all its line boxes. Converting these spans to inline-block +
+     max-width:100% + overflow:hidden constrains each span's bounding rect to
+     its container, which stops Chrome from expanding the scrollable viewport. */
+  .diff-container,
+  .diff-view,
+  .diff-view-unified { overflow-x: auto; }
+
+  /* File header on mobile: two-row layout.
+     Row 1: [chevron] [icon] [name ………………] [comment-btn]
+     Row 2:           [toggle] ……………… [badge] [+/- stats] */
+  .file-header { flex-wrap: wrap; row-gap: 2px; }
+  .file-header-viewed { display: none; }
+
+  /* Row 1: push the comment button to the right edge */
+  .file-comment-btn { margin-left: auto; }
+
+  /* Force a row break before row 2's items */
+  .file-header::after {
+    content: '';
+    flex-basis: 100%;
+    width: 0;
+    height: 0;
+    order: 5;
+  }
+
+  /* Row 2 items — assign explicit order so they all land after the break.
+     Row 1 items keep default order (0); the comment button stays on row 1
+     because order:0 < 5 < 10. */
+  .file-header-badge  { order: 20; margin-left: auto; }
+
+  /* Inline comment forms / comment blocks: zero the desktop gutter padding */
+  .inline-comment-form,
+  .line-comment-block { padding-left: 0 !important; width: 100% !important; }
+  .diff-inline-comment-form,
+  .diff-comment-block { padding-left: 0 !important; width: 100% !important; }
+
+  /* Mobile file picker */
+  .mobile-file-picker-bar:not(.mobile-file-picker-hidden) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--crit-bg-card);
+    border-bottom: 1px solid var(--crit-border);
+    position: sticky;
+    top: var(--crit-header-height);
+    z-index: 90;
+  }
+  .mobile-file-picker-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--crit-editor-fg-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .mobile-file-picker-select {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--crit-font-mono);
+    font-size: 13px;
+    color: var(--crit-editor-fg);
+    background: var(--crit-editor-bg-elevated);
+    border: 1px solid var(--crit-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .mobile-file-picker-select:focus {
+    outline: 2px solid var(--crit-brand);
+    outline-offset: 1px;
+  }
+}
+
+/* Touch-specific affordances and target sizing.
+   Reply actions are hover-revealed on desktop — on touch there's no hover,
+   so always show. All interactive header buttons get >=44x44 (WCAG 2.5.5).
+   Textareas use 16px font-size to prevent iOS Safari focus-zoom. */
+@media (pointer: coarse) {
+  .reply-actions {
+    opacity: 1;
+  }
+
+  .comment-nav-btn {
+    padding: 12px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .comment-count-btn {
+    padding: 10px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .crit-toc-toggle {
+    padding: 12px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .file-comment-btn {
+    padding: 12px 10px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .reply-actions button {
+    padding: 10px 8px;
+    min-height: 44px;
+  }
+  .crit-toc-close {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* iOS Safari zooms any focused input below 16px. */
+  .comment-form textarea,
+  .reply-input {
+    font-size: 16px;
+  }
+
+  /* Tiny header-row affordances: copy-path icon in .file-header-name and
+     the diff hunk-expand button. Both render in the file body on mobile so
+     they need real touch targets. */
+  .file-header-copy-path {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 12px;
+  }
+}
+
+/* F3: add-comment affordance for touch.
+   On desktop the affordance is the blue `+` button (.line-add)
+   revealed on row hover. Touch devices never fire hover, so users need
+   an always-visible cue. We render a `+` prefix as an inline ::before
+   pseudo-element on .line-num. display:inline-block + width:1.2ch
+   reserves a fixed-width slot at the start of each cell, so the glyph
+   sits flush before the digit inside the cell's right-aligned text. */
+@media (pointer: coarse) {
+  .line-num::before {
+    content: '+';
+    display: inline-block;
+    width: 1.2ch;
+    color: var(--crit-editor-fg-muted);
+    opacity: 0.6;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  /* Read-only line-number cells must not advertise commentability.
+     - Document view: a .line-block whose .line-comment-gutter has the
+       .diff-no-comment class shows a number but isn't tappable.
+     - Direct class on .line-num for non-commentable lines. */
+  .line-block:has(.line-comment-gutter.diff-no-comment) .line-num::before,
+  .line-num.line-no-comment::before {
+    display: none;
+  }
+
+  /* F4 reliability: disable the browser's scroll/zoom gesture recognizer
+     on tap targets so it cannot race the pointerdown handler and fire
+     pointercancel before pointerup. */
+  .line-comment-gutter { touch-action: none; }
 }
 

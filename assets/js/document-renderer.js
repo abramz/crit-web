@@ -1502,6 +1502,49 @@ function renderTreeNode(ctx, container, node, depth, pathPrefix) {
   }
 }
 
+function renderMobileFilePicker(ctx) {
+  const bar = document.getElementById('mobileFilePickerBar')
+  const select = document.getElementById('mobileFilePicker')
+  if (!bar || !select) return
+
+  if (ctx.files.length <= 1) {
+    bar.classList.add('mobile-file-picker-hidden')
+    return
+  }
+  bar.classList.remove('mobile-file-picker-hidden')
+
+  // Sticky top is set via CSS: top: var(--crit-header-height).
+  // The CSS variable is maintained by updateHeaderHeight() in renderMultiFile,
+  // which also handles resize events. Do NOT set bar.style.top here — an
+  // inline style would override the CSS variable and go stale on resize /
+  // orientation change / mobile-browser-chrome toggle, causing the bar to
+  // slip under the header.
+
+  const currentValue = select.value
+  select.innerHTML = ''
+  for (let i = 0; i < ctx.files.length; i++) {
+    const opt = document.createElement('option')
+    opt.value = ctx.files[i].path
+    opt.textContent = ctx.files[i].path
+    select.appendChild(opt)
+  }
+
+  if (currentValue && ctx.files.some(function(f) { return f.path === currentValue })) {
+    select.value = currentValue
+  }
+
+  if (!select._mobilePickerBound) {
+    select._mobilePickerBound = true
+    select.addEventListener('change', function() {
+      const sectionEl = document.getElementById('file-section-' + CSS.escape(select.value))
+      if (sectionEl) {
+        if (!sectionEl.open) sectionEl.open = true
+        sectionEl.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      }
+    })
+  }
+}
+
 function renderFileTree(ctx) {
   const panel = document.getElementById('fileTreePanel')
   if (!panel || !ctx.multiFile) return
@@ -1656,10 +1699,15 @@ function renderMultiFile(ctx) {
 
   container.appendChild(filesContainer)
 
+  // Attach touch handler for mobile comment initiation
+  attachGutterTouchHandler(filesContainer, ctx)
+
   // Update comment count
   updateCommentCount(ctx)
   // Update file tree
   renderFileTree(ctx)
+  // Update mobile file picker
+  renderMobileFilePicker(ctx)
   // Render mermaid
   renderMermaidBlocks(container)
   // Hide TOC only in multi-file mode (file tree replaces it)
@@ -1875,7 +1923,7 @@ function renderRoundDiffBlock(ctx, block, diffClass, file, commentable, blockInd
   const gutter = document.createElement('div')
   gutter.className = 'line-gutter'
   const lineNum = document.createElement('span')
-  lineNum.className = 'line-num'
+  lineNum.className = 'line-num' + (commentable ? '' : ' line-no-comment')
   lineNum.textContent = block.startLine
   gutter.appendChild(lineNum)
   lineBlockEl.insertBefore(gutter, lineBlockEl.firstChild)
@@ -2083,7 +2131,7 @@ function renderFileSection(ctx, file) {
   header.innerHTML =
     '<div class="file-header-chevron"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M12.78 5.22a.749.749 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.06 0L3.22 6.28a.749.749 0 1 1 1.06-1.06L8 8.939l3.72-3.719a.749.749 0 0 1 1.06 0Z"/></svg></div>' +
     '<svg class="file-header-icon" viewBox="0 0 16 16" fill="var(--crit-editor-fg-muted)"><path fill-rule="evenodd" d="M3.75 1.5a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V6H9.75A1.75 1.75 0 0 1 8 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v8.086A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V1.75z"/></svg>' +
-    '<span class="file-header-name"><span class="dir">' + escapeHtml(dirPath) + '</span>' + escapeHtml(fileName) +
+    '<span class="file-header-name"><span class="dir">' + escapeHtml(dirPath) + '</span><span class="filename">' + escapeHtml(fileName) + '</span>' +
       '<button type="button" class="file-header-copy-path" aria-label="Copy file path"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5z"/><path fill-rule="evenodd" d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5z"/></svg></button>' +
     '</span>' +
     (file.orphaned ? '<span class="file-header-badge removed">Removed</span>' : '') +
@@ -2450,7 +2498,7 @@ function renderBlock(ctx, block, index, commentsMap, commentedLineSet, filePath)
   gutter.dataset.endLine = block.endLine
 
   const lineNum = document.createElement("span")
-  lineNum.className = "line-num"
+  lineNum.className = "line-num" + (ctx.canComment === false ? " line-no-comment" : "")
   lineNum.textContent = block.startLine === block.endLine ? block.startLine : String(block.startLine)
 
   const commentGutter = document.createElement("div")
@@ -2537,6 +2585,9 @@ function renderDocument(ctx) {
     container.appendChild(renderBlock(ctx, block, bi, commentsMap, commentedLineSet, ctx.singleFilePath || null))
   }
 
+  // Attach touch handler for mobile comment initiation
+  attachGutterTouchHandler(container, ctx)
+
   renderMermaidBlocks(container)
   replaceBrokenImages(container)
   highlightQuotesInSection(container, { path: ctx.singleFilePath, comments: ctx.comments }, ctx.activeForms)
@@ -2614,6 +2665,10 @@ function handleGutterMouseDown(e, ctx) {
     return
   }
 
+  beginGutterDrag(ctx, startLine, endLine, blockIndex, filePath)
+}
+
+function beginGutterDrag(ctx, startLine, endLine, blockIndex, filePath) {
   ctx.dragState = {
     anchorStartLine: startLine,
     anchorEndLine: endLine,
@@ -2634,6 +2689,8 @@ function handleGutterMouseDown(e, ctx) {
   const onUp = (_e) => handleDragEnd(_e, ctx, onMove, onUp)
   document.addEventListener("mousemove", onMove)
   document.addEventListener("mouseup", onUp)
+  document.addEventListener("pointermove", onMove)
+  document.addEventListener("pointerup", onUp)
 }
 
 function handleDragMove(e, ctx) {
@@ -2659,6 +2716,8 @@ function handleDragMove(e, ctx) {
 function handleDragEnd(_e, ctx, onMove, onUp) {
   document.removeEventListener("mousemove", onMove)
   document.removeEventListener("mouseup", onUp)
+  document.removeEventListener("pointermove", onMove)
+  document.removeEventListener("pointerup", onUp)
   document.body.classList.remove("dragging")
 
   if (!ctx.dragState) return
@@ -2677,6 +2736,28 @@ function handleDragEnd(_e, ctx, onMove, onUp) {
 
   ctx.dragState = null
   openForm(ctx, { afterBlockIndex: lastBlockIndex, startLine: rangeStart, endLine: rangeEnd, editingId: null, filePath: filePath })
+}
+
+// ---- Touch comment handler --------------------------------------------------
+
+function attachGutterTouchHandler(container, ctx) {
+  container.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'touch') return
+    const num = e.target.closest('.line-num')
+    if (!num) return
+    const lineBlock = num.closest('.line-block')
+    if (!lineBlock) return
+    // Only trigger on commentable gutters
+    const gutter = lineBlock.querySelector('.line-comment-gutter:not(.diff-no-comment)')
+    if (!gutter) return
+    e.preventDefault()
+    e.stopPropagation()
+    const startLine = parseInt(gutter.dataset.startLine || lineBlock.dataset.startLine)
+    const endLine = parseInt(gutter.dataset.endLine || lineBlock.dataset.endLine)
+    const blockIndex = parseInt(lineBlock.dataset.blockIndex)
+    const filePath = lineBlock.dataset.filePath || null
+    beginGutterDrag(ctx, startLine, endLine, blockIndex, filePath)
+  })
 }
 
 // ---- Comment elements -------------------------------------------------------
@@ -4817,6 +4898,20 @@ export const DocumentRenderer = {
     ctx.prevRoundSnapshots = {}
     ctx.showRoundDiff = false
     ctx.diffMode = 'split'
+    const mobileDiffQuery = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null
+    if (mobileDiffQuery && mobileDiffQuery.matches) {
+      ctx.diffMode = 'unified'
+    }
+    if (mobileDiffQuery) {
+      mobileDiffQuery.addEventListener('change', function(ev) {
+        if (ev.matches) {
+          ctx.diffMode = 'unified'
+        } else {
+          ctx.diffMode = 'split'
+        }
+        render(ctx)
+      })
+    }
     ctx._navCommentId = null
     ctx._hideResolved = readHideResolved()
     ctx._timers = new Set()
