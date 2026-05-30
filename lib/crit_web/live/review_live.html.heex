@@ -129,22 +129,24 @@
       <div class="crit-header-actions-right">
         <span id="viewedCount" class="crit-viewed-count" style="display:none"></span>
         <div class="comment-nav-group" id="comment-nav-group">
-          <button
-            class="comment-nav-btn"
-            id="comment-nav-prev"
-            title="Previous comment ([)"
-            aria-label="Previous comment"
-          >
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.25"
-              aria-hidden="true"
+          <%= if not @preview? do %>
+            <button
+              class="comment-nav-btn"
+              id="comment-nav-prev"
+              title="Previous comment ([)"
+              aria-label="Previous comment"
             >
-              <path d="M4 10l4-4 4 4" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.25"
+                aria-hidden="true"
+              >
+                <path d="M4 10l4-4 4 4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          <% end %>
           <%!--
             aria-expanded is owned by JS (see syncCommentsPanelAria in
             document-renderer.js). Do not set it statically here — the static
@@ -155,7 +157,11 @@
             id="comment-count"
             title="Toggle comments panel"
             aria-label="Toggle comments panel"
-            phx-click={JS.dispatch("crit:toggle-comments", to: "#document-renderer")}
+            phx-click={
+              JS.dispatch("crit:toggle-comments",
+                to: if(@preview?, do: "#crit-preview-layout", else: "#document-renderer")
+              )
+            }
           >
             <svg
               class="comment-count-icon"
@@ -172,11 +178,31 @@
             </svg>
             <span class="comment-count-number" id="commentCountNumber"></span>
           </button>
+          <%= if not @preview? do %>
+            <button
+              class="comment-nav-btn"
+              id="comment-nav-next"
+              title="Next comment (])"
+              aria-label="Next comment"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.25"
+                aria-hidden="true"
+              >
+                <path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          <% end %>
+        </div>
+        <%= if not @preview? do %>
           <button
-            class="comment-nav-btn"
-            id="comment-nav-next"
-            title="Next comment (])"
-            aria-label="Next comment"
+            class="crit-toc-toggle"
+            id="crit-toc-toggle"
+            title="Table of contents"
+            aria-label="Table of contents"
           >
             <svg
               viewBox="0 0 16 16"
@@ -185,26 +211,19 @@
               stroke-width="1.25"
               aria-hidden="true"
             >
-              <path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke-linecap="round" />
             </svg>
           </button>
-        </div>
-        <button
-          class="crit-toc-toggle"
-          id="crit-toc-toggle"
-          title="Table of contents"
-          aria-label="Table of contents"
-        >
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.25"
-            aria-hidden="true"
-          >
-            <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke-linecap="round" />
-          </svg>
-        </button>
+        <% end %>
+        <%!--
+          Preview viewport + Navigate/Pin toggles are injected here by the
+          PreviewMode hook (mirrors crit local live-mode.js, which inserts them
+          before #settingsToggle). The container is server-rendered + empty +
+          phx-update="ignore" so the hook-built toggles survive LiveView patches.
+        --%>
+        <%= if @preview? do %>
+          <div id="crit-preview-controls" class="crit-preview-controls" phx-update="ignore"></div>
+        <% end %>
         <button
           class="crit-toc-toggle"
           id="settingsToggle"
@@ -572,38 +591,54 @@
     >
     </select>
   </div>
-  <div id="crit-main-layout" class="crit-main-layout" phx-update="ignore">
-    <div id="fileTreePanel" class="tree-panel" style="display:none">
-      <div id="treeConversationSection" class="tree-section--conversation"></div>
-      <div class="tree-header">
-        <span class="tree-title">Files</span>
-        <span id="fileTreeStats" class="tree-stats"></span>
-      </div>
-      <div id="fileTreeBody" class="tree-body"></div>
-    </div>
+  <%= if @preview? do %>
     <div
-      id="fileTreeResizer"
-      class="sidebar-resize-handle"
-      role="separator"
-      tabindex="0"
-      aria-orientation="vertical"
-      aria-label="Resize file tree"
+      id="crit-preview-layout"
+      class="crit-preview-container"
+      phx-hook="PreviewMode"
+      phx-update="ignore"
+      data-token={@review.token}
+      data-base-url={CritWeb.Endpoint.url()}
+      data-can-comment={to_string(@can_comment?)}
+      data-identity={@current_scope.identity}
+      data-user-id={Crit.Accounts.Scope.user_id(@current_scope)}
+      data-review-owner-id={@review.user_id}
     >
     </div>
-
-    <div class="crit-main-content">
-      <div id="reviewConversation" class="review-conversation" hidden></div>
+  <% else %>
+    <div id="crit-main-layout" class="crit-main-layout" phx-update="ignore">
+      <div id="fileTreePanel" class="tree-panel" style="display:none">
+        <div id="treeConversationSection" class="tree-section--conversation"></div>
+        <div class="tree-header">
+          <span class="tree-title">Files</span>
+          <span id="fileTreeStats" class="tree-stats"></span>
+        </div>
+        <div id="fileTreeBody" class="tree-body"></div>
+      </div>
       <div
-        id="document-renderer"
-        phx-hook=".DocumentRenderer"
-        phx-update="ignore"
-        data-identity={@current_scope.identity}
-        data-user-id={Crit.Accounts.Scope.user_id(@current_scope)}
-        data-review-owner-id={@review.user_id}
-        data-review-round={@review.review_round || 0}
+        id="fileTreeResizer"
+        class="sidebar-resize-handle"
+        role="separator"
+        tabindex="0"
+        aria-orientation="vertical"
+        aria-label="Resize file tree"
       >
-        <div class="crit-loading">Loading document...</div>
+      </div>
+
+      <div class="crit-main-content">
+        <div id="reviewConversation" class="review-conversation" hidden></div>
+        <div
+          id="document-renderer"
+          phx-hook=".DocumentRenderer"
+          phx-update="ignore"
+          data-identity={@current_scope.identity}
+          data-user-id={Crit.Accounts.Scope.user_id(@current_scope)}
+          data-review-owner-id={@review.user_id}
+          data-review-round={@review.review_round || 0}
+        >
+          <div class="crit-loading">Loading document...</div>
+        </div>
       </div>
     </div>
-  </div>
+  <% end %>
 </div>

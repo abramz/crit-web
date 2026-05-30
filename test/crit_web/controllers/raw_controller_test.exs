@@ -1,4 +1,6 @@
 defmodule CritWeb.RawControllerTest do
+  # async: false — the auth-gate describes mutate global Application env
+  # (:selfhosted / :oauth_provider), which would race other async tests.
   use CritWeb.ConnCase, async: false
 
   import Crit.ReviewsFixtures
@@ -76,6 +78,123 @@ defmodule CritWeb.RawControllerTest do
       conn = get(conn, "/r/" <> review.token <> "/raw/" <> "héllo.txt")
 
       assert response(conn, 404)
+    end
+  end
+
+  describe "preview reviews" do
+    # 8-byte PNG magic header, base64-encoded.
+    @png_signature <<137, 80, 78, 71, 13, 10, 26, 10>>
+    @png_base64 Base.encode64(@png_signature)
+
+    test "serves a base64 snapshot decoded with the correct MIME type", %{conn: conn} do
+      review =
+        review_fixture(%{
+          review_type: :preview,
+          files: [
+            file("index.html", "<html><body></body></html>"),
+            file("logo.png", @png_base64, %{"encoding" => "base64"})
+          ]
+        })
+
+      conn = get(conn, ~p"/r/#{review.token}/raw/logo.png")
+
+      assert response_content_type(conn, :png) =~ "image/png"
+      assert response(conn, 200) == @png_signature
+    end
+
+    test "injects agent scripts before </body> and sets a restrictive CSP on HTML", %{conn: conn} do
+      html = "<html><head></head><body><h1>Hi</h1></body></html>"
+      review = review_fixture(%{review_type: :preview, files: [file("index.html", html)]})
+
+      conn = get(conn, ~p"/r/#{review.token}/raw/index.html")
+
+      body = response(conn, 200)
+      assert response_content_type(conn, :html) =~ "text/html"
+
+      # All 7 agent scripts injected, in crit's exact order.
+      expected_scripts = [
+        "agent-protocol.js",
+        "agent-anchor-utils.js",
+        "agent-marker-overlay.js",
+        "agent-mutation-batcher.js",
+        "agent-resolution.js",
+        "agent-reanchor-state.js",
+        "crit-agent.js"
+      ]
+
+      for name <- expected_scripts do
+        assert body =~ ~s(<script src="/preview-agent/#{name}"></script>)
+      end
+
+      # Injected before the closing body tag.
+      [before_body, _after] = String.split(body, "</body>", parts: 2)
+      assert before_body =~ "/preview-agent/crit-agent.js"
+
+      # Order preserved.
+      proto_idx = :binary.match(body, "/preview-agent/agent-protocol.js") |> elem(0)
+      agent_idx = :binary.match(body, "/preview-agent/crit-agent.js") |> elem(0)
+      assert proto_idx < agent_idx
+
+      [csp] = get_resp_header(conn, "content-security-policy")
+      assert csp =~ "default-src 'self' 'unsafe-inline' 'unsafe-eval'"
+      assert csp =~ "img-src 'self' data: blob:"
+      assert csp =~ "font-src 'self' data:"
+      # connect-src 'self' (not 'none') so the injected agent can fetch its
+      # same-origin marker CSS without a CSP violation; external egress stays
+      # blocked.
+      assert csp =~ "connect-src 'self'"
+      assert csp =~ "frame-src 'none'"
+      # No external origins in the preview sandbox CSP.
+      refute csp =~ "http"
+    end
+
+    test "appends agent scripts when there is no </body> tag", %{conn: conn} do
+      review =
+        review_fixture(%{
+          review_type: :preview,
+          files: [file("index.html", "<div>fragment with no body tag</div>")]
+        })
+
+      conn = get(conn, ~p"/r/#{review.token}/raw/index.html")
+
+      body = response(conn, 200)
+      assert body =~ "fragment with no body tag"
+      assert body =~ ~s(<script src="/preview-agent/crit-agent.js"></script>)
+    end
+
+    test "serves a text asset (.css) verbatim as text/css without injection or preview CSP", %{
+      conn: conn
+    } do
+      css = "body { color: red; }"
+
+      review =
+        review_fixture(%{
+          review_type: :preview,
+          files: [file("index.html", "<html><body></body></html>"), file("style.css", css)]
+        })
+
+      conn = get(conn, ~p"/r/#{review.token}/raw/style.css")
+
+      assert response_content_type(conn, :css) =~ "text/css"
+      assert response(conn, 200) == css
+      refute response(conn, 200) =~ "/preview-agent/"
+      # CSS assets are not HTML — no restrictive preview sandbox CSP.
+      refute get_resp_header(conn, "content-security-policy")
+             |> Enum.any?(&(&1 =~ "connect-src 'none'"))
+    end
+
+    test "files-mode HTML is served verbatim — no agent injection, no preview CSP", %{conn: conn} do
+      html = "<html><body><h1>hi</h1></body></html>"
+      review = review_fixture(%{files: [file("index.html", html)]})
+
+      conn = get(conn, ~p"/r/#{review.token}/raw/index.html")
+
+      body = response(conn, 200)
+      assert body == html
+      refute body =~ "/preview-agent/"
+
+      refute get_resp_header(conn, "content-security-policy")
+             |> Enum.any?(&(&1 =~ "connect-src 'none'"))
     end
   end
 

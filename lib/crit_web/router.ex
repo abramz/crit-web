@@ -81,6 +81,7 @@ defmodule CritWeb.Router do
     get "/auth/cli/success", DeviceController, :success
 
     get "/r/:token/raw/*file_path", RawController, :show
+    get "/agent-marker.css", RawController, :marker_css
     get "/share-receiver", ShareReceiverController, :index
   end
 
@@ -217,8 +218,15 @@ defmodule CritWeb.Router do
     options "/reviews", ApiController, :options
     post "/reviews", ApiController, :create
     delete "/reviews", ApiController, :delete_review
+
+    # Per-token preflight routes: the browser sends a CORS preflight before the
+    # re-share PUT (non-simple: JSON Content-Type). Without an `options` route
+    # the preflight 404s before LocalhostCors runs. The comments route is GET
+    # (simple, no preflight) but declared for symmetry / future custom headers.
+    options "/reviews/:token", ApiController, :options
     put "/reviews/:token", ApiController, :update
 
+    options "/reviews/:token/comments", ApiController, :options
     get "/reviews/:token/document", ApiController, :document
     get "/reviews/:token/comments", ApiController, :comments_list
 

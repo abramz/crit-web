@@ -1186,7 +1186,9 @@ body.dragging { user-select: none; cursor: grabbing; }
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 40;
+  /* Above the comments panel (z-index 90), matching .crit-split-dropdown (100)
+     — the panel is open by default in preview, so a lower value gets clipped. */
+  z-index: 100;
   width: 280px;
   background: var(--crit-bg-elevated);
   border: 1px solid var(--crit-border-strong);
@@ -3869,3 +3871,152 @@ body.sidebar-resizing * {
   .line-comment-gutter { touch-action: none; }
 }
 
+
+/* ============================================================
+   Preview mode — iframe pane + shared comments panel (PreviewMode hook)
+   The comment panel, cards, replies, resolve/reply and resolved styling are
+   REUSED from the shared chrome (.comments-panel*, .comment-card*, comments-
+   panel.js) — identical to files mode. This block defines only the preview-
+   specific pieces: the iframe pane, the header viewport/Navigate-Pin toggles
+   (which reuse .crit-diff-mode-toggle/.crit-toggle-btn), the pin-number badge,
+   the selection composer, and the pin flash animation.
+   Custom CSS only — no Tailwind/daisyUI on the review page.
+   ============================================================ */
+
+.crit-preview-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--crit-header-height, 56px));
+  min-height: 0;
+  background: var(--crit-editor-bg);
+}
+
+/* Header viewport + Navigate/Pin toggles (injected into .crit-header-actions-right). */
+.crit-preview-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crit-preview-controls .crit-toggle-btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --- Body: iframe pane + shared side panel split --- */
+.crit-preview-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.crit-preview-iframe-pane {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+  background: var(--crit-editor-bg);
+}
+
+.crit-preview-iframe-frame {
+  position: relative;
+  flex: 0 0 auto;
+  background: #fff;
+  border: 1px solid var(--crit-border);
+  box-shadow: var(--crit-shadow);
+  border-radius: var(--crit-r-md);
+  /* width/height set inline by the viewport controller */
+}
+
+.crit-preview-iframe-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: var(--crit-r-md);
+}
+
+/* --- Pin-number badge on a shared .comment-card (preview-only chrome) --- */
+.crit-preview-pin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--crit-brand-cta);
+  color: var(--crit-fg-on-brand);
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.crit-preview-card-flash { animation: crit-preview-flash 1.2s ease-out; }
+
+@keyframes crit-preview-flash {
+  0%   { box-shadow: 0 0 0 2px var(--crit-brand-cta); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+
+/* --- Selection composer (new DOM-anchored comment) --- */
+.crit-preview-composer {
+  border: 1px solid var(--crit-brand);
+  border-radius: var(--crit-r-md);
+  background: var(--crit-editor-comment-bg);
+  box-shadow: 0 0 0 2px var(--crit-brand-subtle);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.crit-preview-composer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.crit-preview-composer-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--crit-r-sm);
+  background: var(--crit-editor-code-bg);
+  color: var(--crit-editor-fg);
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crit-preview-composer-body {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: var(--crit-font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 8px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--crit-r-sm);
+  background: var(--crit-editor-bg);
+  color: var(--crit-editor-fg);
+}
+
+.crit-preview-composer-body::placeholder { color: var(--crit-editor-fg-muted); }
+
+.crit-preview-composer-error {
+  color: var(--crit-red);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.crit-preview-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
